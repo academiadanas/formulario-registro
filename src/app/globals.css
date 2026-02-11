@@ -1,24 +1,16 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap");
 @import "tailwindcss";
 
-/* =============================================
-   ACADEMIA DANAS - Custom CSS Variables
-   ============================================= */
 @theme {
-  --color-primary: #e74a82;
-  --color-primary-light: #f07da6;
-  --color-primary-dark: #d22c64;
-  --color-primary-50: rgba(231, 74, 130, 0.08);
+    --color-primary: #e74a82;
+    --color-primary-light: #f07da6;
+    --color-primary-dark: #d22c64;
+    --color-primary-50: rgba(231, 74, 130, 0.08);
 }
 
-/* =============================================
-   BASE STYLES
-   ============================================= */
 @layer base {
-  body {
-    font-family: 'Poppins', 'Segoe UI', sans-serif;
-    @apply text-gray-800 antialiased;
-  }
+    body {
+        font-family: "Poppins", "Segoe UI", sans-serif;
+        @apply text-gray-800 antialiased;
+    }
 }
-
-/* Import Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
