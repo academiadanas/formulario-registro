@@ -1,5 +1,7 @@
 "use client";
 
+import EditRegistroModal from "@/components/admin/EditRegistroModal";
+import { Pencil } from "lucide-react";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
@@ -40,6 +42,7 @@ export default function AdminRegistroDetailPage({
     } | null>(null);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
 
     useEffect(() => {
         async function loadRegistro() {
@@ -274,6 +277,14 @@ export default function AdminRegistroDetailPage({
                     </a>
 
                     <button
+                        onClick={() => setShowEditModal(true)}
+                        className="inline-flex items-center gap-2 bg-amber-500 text-white py-2.5 px-5 rounded-xl text-sm font-semibold hover:-translate-y-0.5 hover:shadow-lg transition-all"
+                    >
+                        <Pencil className="w-4 h-4" />
+                        Editar
+                    </button>
+
+                    <button
                         onClick={() => setShowDeleteModal(true)}
                         className="inline-flex items-center gap-2 bg-white border border-red-200 text-red-500 py-2.5 px-5 rounded-xl text-sm font-semibold hover:bg-red-50 transition-all ml-auto"
                     >
@@ -430,6 +441,16 @@ export default function AdminRegistroDetailPage({
                     </div>
                 </div>
             </div>
+            {/* Modal de edición */}
+            {registro && (
+                <EditRegistroModal
+                    isOpen={showEditModal}
+                    registro={registro}
+                    onClose={() => setShowEditModal(false)}
+                    onSaved={(updated) => setRegistro(updated)}
+                />
+            )}
+
             {/* Modal de confirmación */}
             <ConfirmModal
                 isOpen={showDeleteModal}
