@@ -30,6 +30,7 @@ import {
 } from "recharts";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface Stats {
     totalRegistros: number;
@@ -57,6 +58,7 @@ const COLORS = [
 export default function AdminDashboardPage() {
     const [stats, setStats] = useState<Stats | null>(null);
     const [loading, setLoading] = useState(true);
+    const userRole = useUserRole();
 
     useEffect(() => {
         async function loadStats() {
@@ -257,15 +259,17 @@ export default function AdminDashboardPage() {
                         Resumen general de inscripciones
                     </p>
                 </div>
-                <button
-                    onClick={handleExportExcel}
-                    className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-700 
-            py-2.5 px-5 rounded-xl text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 
-            transition-all shadow-sm"
-                >
-                    <Download className="w-4 h-4" />
-                    Exportar Excel
-                </button>
+                {userRole.canExport && (
+                    <button
+                        onClick={handleExportExcel}
+                        className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-700
+                py-2.5 px-5 rounded-xl text-sm font-semibold hover:bg-gray-50 hover:border-gray-300
+                transition-all shadow-sm"
+                    >
+                        <Download className="w-4 h-4" />
+                        Exportar Excel
+                    </button>
+                )}
             </div>
 
             {/* Stats cards */}
