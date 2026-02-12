@@ -577,6 +577,7 @@ function DocRow({
     onDeleted: () => void;
 }) {
     const [deleting, setDeleting] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     let fileUrl: string | null = null;
 
@@ -589,63 +590,55 @@ function DocRow({
     }
 
     async function handleDeleteFile() {
-        if (!confirm(`¿Eliminar ${label}?`)) return;
         setDeleting(true);
 
         const supabase = createClient();
 
-        // Eliminar del storage si la ruta no es URL completa
         if (ruta && !ruta.startsWith("http")) {
             await supabase.storage.from("documentos").remove([ruta]);
         } else if (ruta && ruta.startsWith("http")) {
-            // Extraer path relativo de la URL
             const path = ruta.split("/documentos/")[1];
             if (path) {
                 await supabase.storage.from("documentos").remove([path]);
             }
         }
 
-        // Limpiar la ruta en la base de datos
         await supabase
             .from("registros")
             .update({ [field]: null })
             .eq("id", registroId);
 
         setDeleting(false);
+        setShowConfirm(false);
         onDeleted();
     }
 
     return (
-        <div className="flex items-center justify-between gap-4">
-            <span className="text-sm text-gray-400">{label}</span>
-            <div className="flex items-center gap-2">
+        <>
+            <div className="flex items-center justify-between gap-4 py-1">
+                <span className="text-sm text-gray-400">{label}</span>
                 {uploaded && fileUrl ? (
-                    <>
+                    <div className="flex items-center gap-4">
                         <a
                             href={fileUrl}
                             target="_blank"
-                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-dark transition-colors"
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary-50 hover:bg-primary/10 px-3 py-1.5 rounded-lg transition-colors"
                         >
                             <Eye className="w-3.5 h-3.5" />
                             Ver
                         </a>
                         <button
-                            onClick={handleDeleteFile}
-                            disabled={deleting}
-                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                            onClick={() => setShowConfirm(true)}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-400 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors"
                         >
-                            {deleting ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                                <Trash2 className="w-3.5 h-3.5" />
-                            )}
-                            {deleting ? "..." : "Eliminar"}
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Eliminar
                         </button>
                         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-full">
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             Subido
                         </span>
-                    </>
+                    </div>
                 ) : (
                     <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
                         <XCircle className="w-3.5 h-3.5" />
@@ -653,6 +646,17 @@ function DocRow({
                     </span>
                 )}
             </div>
-        </div>
+            <ConfirmModal
+                isOpen={showConfirm}
+                title={`Eliminar ${label}`}
+                message={`¿Estás seguro de eliminar este documento? Tendrás que volver a subirlo si lo necesitas.`}
+                confirmLabel="Sí, Eliminar"
+                cancelLabel="No, Cancelar"
+                variant="danger"
+                loading={deleting}
+                onConfirm={handleDeleteFile}
+                onCancel={() => setShowConfirm(false)}
+            />
+        </>
     );
 }
