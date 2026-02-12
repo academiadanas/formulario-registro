@@ -537,9 +537,15 @@ function DocRow({
     ruta: string | null;
 }) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const fileUrl = ruta
-        ? `${supabaseUrl}/storage/v1/object/public/documentos/${ruta}`
-        : null;
+    let fileUrl: string | null = null;
+
+    if (ruta) {
+        if (ruta.startsWith("http")) {
+            fileUrl = ruta;
+        } else {
+            fileUrl = `${supabaseUrl}/storage/v1/object/public/documentos/${ruta}`;
+        }
+    }
 
     return (
         <div className="flex items-center justify-between gap-4">
