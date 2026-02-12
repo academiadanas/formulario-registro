@@ -5,7 +5,7 @@ import { ACADEMIA_INFO } from '@/lib/constants';
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-pink-50 flex items-center justify-center p-5">
-      <div className="max-w-lg w-full bg-white rounded-3xl shadow-xl p-10 text-center">
+      <div className="max-w-lg w-full bg-white rounded-3xl shadow-xl p-6 sm:p-10 text-center">
         <Image
           src={ACADEMIA_INFO.logo}
           alt="Academia Danas"

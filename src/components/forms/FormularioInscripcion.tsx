@@ -356,9 +356,9 @@ export default function FormularioInscripcion() {
   return (
     <form onSubmit={handleSubmit} className="max-w-[680px] mx-auto bg-white rounded-3xl shadow-xl overflow-hidden animate-[fadeInUp_0.6s_ease]">
       {/* Header */}
-      <div className="bg-gradient-to-br from-primary to-primary-dark px-8 py-9 text-center relative overflow-hidden">
+      <div className="bg-gradient-to-br from-primary to-primary-dark px-5 py-6 sm:px-8 sm:py-9 text-center relative overflow-hidden">
         <div className="absolute -top-1/2 -right-1/2 w-full h-[200%] bg-[radial-gradient(circle,rgba(255,255,255,0.15)_0%,transparent_60%)] pointer-events-none" />
-        <h1 className="text-white text-2xl font-semibold mb-6 relative">
+        <h1 className="text-white text-xl sm:text-2xl font-semibold mb-4 sm:mb-6 relative">
           Formulario de Inscripción
         </h1>
         <StepIndicator currentStep={currentStep} totalSteps={TOTAL_STEPS} />
@@ -366,15 +366,15 @@ export default function FormularioInscripcion() {
 
       {/* Error general */}
       {errors.submit && (
-        <div className="mx-8 mt-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl text-red-700 text-center">
+        <div className="mx-5 sm:mx-8 mt-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl text-red-700 text-center">
           {errors.submit}
         </div>
       )}
 
       {/* PASO 1: Aviso de Privacidad */}
       {currentStep === 1 && (
-        <div className="p-8 pt-9 animate-[fadeIn_0.4s_ease]">
-          <h2 className="text-gray-700 text-xl font-semibold mb-5 flex items-center gap-2">
+        <div className="p-5 pt-6 sm:p-8 sm:pt-9 animate-[fadeIn_0.4s_ease]">
+          <h2 className="text-gray-700 text-lg sm:text-xl font-semibold mb-4 sm:mb-5 flex items-center gap-2">
             🔒 Aviso de Privacidad
           </h2>
           <p className="text-gray-500 text-[0.95rem] mb-4 leading-relaxed">
@@ -399,7 +399,7 @@ export default function FormularioInscripcion() {
           </p>
 
           <label
-            className={`flex items-start gap-3 p-5 rounded-xl border-2 cursor-pointer transition-all
+            className={`flex items-start gap-3 p-4 sm:p-5 rounded-xl border-2 cursor-pointer transition-all
               ${aceptaAviso ? 'bg-primary-50 border-primary' : 'bg-gray-50 border-gray-200 hover:border-primary'}`}
           >
             <input
@@ -428,8 +428,8 @@ export default function FormularioInscripcion() {
 
       {/* PASO 2: Curso y Documentos */}
       {currentStep === 2 && (
-        <div className="p-8 pt-9 animate-[fadeIn_0.4s_ease]">
-          <h2 className="text-gray-700 text-xl font-semibold mb-6 pb-3 border-b-[3px] border-primary-light flex items-center gap-2">
+        <div className="p-5 pt-6 sm:p-8 sm:pt-9 animate-[fadeIn_0.4s_ease]">
+          <h2 className="text-gray-700 text-lg sm:text-xl font-semibold mb-4 sm:mb-6 pb-3 border-b-[3px] border-primary-light flex items-center gap-2">
             <span className="w-2 h-7 bg-gradient-to-b from-primary to-primary-dark rounded" />
             Curso y Documentos
           </h2>
@@ -502,8 +502,8 @@ export default function FormularioInscripcion() {
 
       {/* PASO 3: Datos Personales */}
       {currentStep === 3 && (
-        <div className="p-8 pt-9 animate-[fadeIn_0.4s_ease]">
-          <h2 className="text-gray-700 text-xl font-semibold mb-6 pb-3 border-b-[3px] border-primary-light flex items-center gap-2">
+        <div className="p-5 pt-6 sm:p-8 sm:pt-9 animate-[fadeIn_0.4s_ease]">
+          <h2 className="text-gray-700 text-lg sm:text-xl font-semibold mb-4 sm:mb-6 pb-3 border-b-[3px] border-primary-light flex items-center gap-2">
             <span className="w-2 h-7 bg-gradient-to-b from-primary to-primary-dark rounded" />
             Datos Personales
           </h2>
@@ -598,8 +598,8 @@ export default function FormularioInscripcion() {
 
       {/* PASO 4: Domicilio */}
       {currentStep === 4 && (
-        <div className="p-8 pt-9 animate-[fadeIn_0.4s_ease]">
-          <h2 className="text-gray-700 text-xl font-semibold mb-6 pb-3 border-b-[3px] border-primary-light flex items-center gap-2">
+        <div className="p-5 pt-6 sm:p-8 sm:pt-9 animate-[fadeIn_0.4s_ease]">
+          <h2 className="text-gray-700 text-lg sm:text-xl font-semibold mb-4 sm:mb-6 pb-3 border-b-[3px] border-primary-light flex items-center gap-2">
             <span className="w-2 h-7 bg-gradient-to-b from-primary to-primary-dark rounded" />
             Domicilio
           </h2>
@@ -649,8 +649,8 @@ export default function FormularioInscripcion() {
 
       {/* PASO 5: Contacto Familiar */}
       {currentStep === 5 && (
-        <div className="p-8 pt-9 animate-[fadeIn_0.4s_ease]">
-          <h2 className="text-gray-700 text-xl font-semibold mb-6 pb-3 border-b-[3px] border-primary-light flex items-center gap-2">
+        <div className="p-5 pt-6 sm:p-8 sm:pt-9 animate-[fadeIn_0.4s_ease]">
+          <h2 className="text-gray-700 text-lg sm:text-xl font-semibold mb-4 sm:mb-6 pb-3 border-b-[3px] border-primary-light flex items-center gap-2">
             <span className="w-2 h-7 bg-gradient-to-b from-primary to-primary-dark rounded" />
             Contacto Familiar
           </h2>
@@ -718,8 +718,8 @@ export default function FormularioInscripcion() {
 
       {/* PASO 6: Contacto de Emergencia */}
       {currentStep === 6 && (
-        <div className="p-8 pt-9 animate-[fadeIn_0.4s_ease]">
-          <h2 className="text-gray-700 text-xl font-semibold mb-6 pb-3 border-b-[3px] border-primary-light flex items-center gap-2">
+        <div className="p-5 pt-6 sm:p-8 sm:pt-9 animate-[fadeIn_0.4s_ease]">
+          <h2 className="text-gray-700 text-lg sm:text-xl font-semibold mb-4 sm:mb-6 pb-3 border-b-[3px] border-primary-light flex items-center gap-2">
             <span className="w-2 h-7 bg-gradient-to-b from-primary to-primary-dark rounded" />
             Contacto de Emergencia
           </h2>
@@ -757,7 +757,7 @@ export default function FormularioInscripcion() {
       {/* Loading overlay */}
       {isSubmitting && (
         <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white p-12 rounded-3xl text-center shadow-2xl">
+          <div className="bg-white p-8 sm:p-12 rounded-3xl text-center shadow-2xl mx-5">
             <div className="w-14 h-14 border-4 border-primary-light border-t-primary rounded-full animate-spin mx-auto" />
             <p className="mt-5 text-gray-800 font-medium text-lg">Enviando registro...</p>
             <p className="mt-2 text-gray-500 text-sm">Por favor espera, esto puede tardar unos segundos.</p>

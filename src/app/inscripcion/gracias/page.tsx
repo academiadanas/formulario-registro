@@ -58,8 +58,8 @@ function GraciasContent() {
           />
         </div>
 
-        <div className="bg-white rounded-3xl shadow-xl p-10 text-center animate-[fadeInUp_0.6s_ease]">
-          <h1 className="text-2xl font-semibold text-primary mb-6 flex items-center justify-center gap-3">
+        <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-10 text-center animate-[fadeInUp_0.6s_ease]">
+          <h1 className="text-xl sm:text-2xl font-semibold text-primary mb-4 sm:mb-6 flex items-center justify-center gap-2 sm:gap-3">
             🎉 ¡Registro Enviado Exitosamente!
           </h1>
 
