@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase-client";
 import { Registro } from "@/types";
 import {
     ArrowLeft,
+    Eye,
     FileText,
     Mail,
     MessageCircle,
@@ -428,14 +429,17 @@ export default function AdminRegistroDetailPage({
                             <DocRow
                                 label="INE / CURP"
                                 uploaded={!!registro.ruta_ine}
+                                ruta={registro.ruta_ine}
                             />
                             <DocRow
                                 label="Acta de Nacimiento"
                                 uploaded={!!registro.ruta_acta_nacimiento}
+                                ruta={registro.ruta_acta_nacimiento}
                             />
                             <DocRow
                                 label="Comprobante de Domicilio"
                                 uploaded={!!registro.ruta_comprobante_domicilio}
+                                ruta={registro.ruta_comprobante_domicilio}
                             />
                         </div>
                     </div>
@@ -523,21 +527,46 @@ function DataRow({
 }
 
 // Fila de documento con indicador visual
-function DocRow({ label, uploaded }: { label: string; uploaded: boolean }) {
+function DocRow({
+    label,
+    uploaded,
+    ruta,
+}: {
+    label: string;
+    uploaded: boolean;
+    ruta: string | null;
+}) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const fileUrl = ruta
+        ? `${supabaseUrl}/storage/v1/object/public/documentos/${ruta}`
+        : null;
+
     return (
         <div className="flex items-center justify-between gap-4">
             <span className="text-sm text-gray-400">{label}</span>
-            {uploaded ? (
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-full">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Subido
-                </span>
-            ) : (
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
-                    <XCircle className="w-3.5 h-3.5" />
-                    Pendiente
-                </span>
-            )}
+            <div className="flex items-center gap-2">
+                {uploaded && fileUrl ? (
+                    <>
+                        <a
+                            href={fileUrl}
+                            target="_blank"
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-dark transition-colors"
+                        >
+                            <Eye className="w-3.5 h-3.5" />
+                            Ver
+                        </a>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-full">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Subido
+                        </span>
+                    </>
+                ) : (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
+                        <XCircle className="w-3.5 h-3.5" />
+                        Pendiente
+                    </span>
+                )}
+            </div>
         </div>
     );
 }
