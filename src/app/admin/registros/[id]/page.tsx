@@ -430,16 +430,50 @@ export default function AdminRegistroDetailPage({
                                 label="INE / CURP"
                                 uploaded={!!registro.ruta_ine}
                                 ruta={registro.ruta_ine}
+                                field="ruta_ine"
+                                registroId={registro.id}
+                                onDeleted={() =>
+                                    setRegistro((prev) =>
+                                        prev
+                                            ? { ...prev, ruta_ine: null }
+                                            : null,
+                                    )
+                                }
                             />
                             <DocRow
                                 label="Acta de Nacimiento"
                                 uploaded={!!registro.ruta_acta_nacimiento}
                                 ruta={registro.ruta_acta_nacimiento}
+                                field="ruta_acta_nacimiento"
+                                registroId={registro.id}
+                                onDeleted={() =>
+                                    setRegistro((prev) =>
+                                        prev
+                                            ? {
+                                                  ...prev,
+                                                  ruta_acta_nacimiento: null,
+                                              }
+                                            : null,
+                                    )
+                                }
                             />
                             <DocRow
                                 label="Comprobante de Domicilio"
                                 uploaded={!!registro.ruta_comprobante_domicilio}
                                 ruta={registro.ruta_comprobante_domicilio}
+                                field="ruta_comprobante_domicilio"
+                                registroId={registro.id}
+                                onDeleted={() =>
+                                    setRegistro((prev) =>
+                                        prev
+                                            ? {
+                                                  ...prev,
+                                                  ruta_comprobante_domicilio:
+                                                      null,
+                                              }
+                                            : null,
+                                    )
+                                }
                             />
                         </div>
                     </div>
@@ -531,11 +565,18 @@ function DocRow({
     label,
     uploaded,
     ruta,
+    field,
+    registroId,
+    onDeleted,
 }: {
     label: string;
     uploaded: boolean;
     ruta: string | null;
+    field: string;
+    registroId: number;
+    onDeleted: () => void;
 }) {
+    const [deleting, setDeleting] = useState(false);
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     let fileUrl: string | null = null;
 
@@ -545,6 +586,33 @@ function DocRow({
         } else {
             fileUrl = `${supabaseUrl}/storage/v1/object/public/documentos/${ruta}`;
         }
+    }
+
+    async function handleDeleteFile() {
+        if (!confirm(`¿Eliminar ${label}?`)) return;
+        setDeleting(true);
+
+        const supabase = createClient();
+
+        // Eliminar del storage si la ruta no es URL completa
+        if (ruta && !ruta.startsWith("http")) {
+            await supabase.storage.from("documentos").remove([ruta]);
+        } else if (ruta && ruta.startsWith("http")) {
+            // Extraer path relativo de la URL
+            const path = ruta.split("/documentos/")[1];
+            if (path) {
+                await supabase.storage.from("documentos").remove([path]);
+            }
+        }
+
+        // Limpiar la ruta en la base de datos
+        await supabase
+            .from("registros")
+            .update({ [field]: null })
+            .eq("id", registroId);
+
+        setDeleting(false);
+        onDeleted();
     }
 
     return (
@@ -561,6 +629,18 @@ function DocRow({
                             <Eye className="w-3.5 h-3.5" />
                             Ver
                         </a>
+                        <button
+                            onClick={handleDeleteFile}
+                            disabled={deleting}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                        >
+                            {deleting ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                                <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                            {deleting ? "..." : "Eliminar"}
+                        </button>
                         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-full">
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             Subido
