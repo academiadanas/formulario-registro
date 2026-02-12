@@ -1,5 +1,6 @@
 "use client";
 
+import ConfirmModal from "@/components/ui/ConfirmModal";
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -37,6 +38,8 @@ export default function AdminRegistroDetailPage({
         type: "success" | "error";
         message: string;
     } | null>(null);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [deleteLoading, setDeleteLoading] = useState(false);
 
     useEffect(() => {
         async function loadRegistro() {
@@ -86,13 +89,7 @@ export default function AdminRegistroDetailPage({
     }
 
     async function handleDelete() {
-        if (
-            !confirm(
-                "¿Estás seguro de eliminar este registro? Esta acción no se puede deshacer.",
-            )
-        )
-            return;
-
+        setDeleteLoading(true);
         const supabase = createClient();
         const { error } = await supabase
             .from("registros")
@@ -104,6 +101,8 @@ export default function AdminRegistroDetailPage({
                 type: "error",
                 message: "Error al eliminar: " + error.message,
             });
+            setDeleteLoading(false);
+            setShowDeleteModal(false);
         } else {
             router.push("/admin/registros");
         }
@@ -275,7 +274,7 @@ export default function AdminRegistroDetailPage({
                     </a>
 
                     <button
-                        onClick={handleDelete}
+                        onClick={() => setShowDeleteModal(true)}
                         className="inline-flex items-center gap-2 bg-white border border-red-200 text-red-500 py-2.5 px-5 rounded-xl text-sm font-semibold hover:bg-red-50 transition-all ml-auto"
                     >
                         <Trash2 className="w-4 h-4" />
@@ -431,6 +430,18 @@ export default function AdminRegistroDetailPage({
                     </div>
                 </div>
             </div>
+            {/* Modal de confirmación */}
+            <ConfirmModal
+                isOpen={showDeleteModal}
+                title="Eliminar Registro"
+                message={`¿Estás seguro de eliminar el registro de ${nombreCompleto}? Esta acción no se puede deshacer y se perderán todos los datos y documentos asociados.`}
+                confirmLabel="Sí, Eliminar"
+                cancelLabel="No, Cancelar"
+                variant="danger"
+                loading={deleteLoading}
+                onConfirm={handleDelete}
+                onCancel={() => setShowDeleteModal(false)}
+            />
         </div>
     );
 }
