@@ -26,6 +26,7 @@ import {
     Calendar,
     Hash,
 } from "lucide-react";
+import { useUserRole } from "@/hooks/useUserRole";
 
 export default function AdminRegistroDetailPage({
     params,
@@ -44,6 +45,7 @@ export default function AdminRegistroDetailPage({
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
+    const userRole = useUserRole();
 
     useEffect(() => {
         async function loadRegistro() {
@@ -277,21 +279,25 @@ export default function AdminRegistroDetailPage({
                         WhatsApp
                     </a>
 
-                    <button
-                        onClick={() => setShowEditModal(true)}
-                        className="inline-flex items-center gap-2 bg-amber-500 text-white py-2.5 px-5 rounded-xl text-sm font-semibold hover:-translate-y-0.5 hover:shadow-lg transition-all"
-                    >
-                        <Pencil className="w-4 h-4" />
-                        Editar
-                    </button>
+                    {userRole.canEdit && (
+                        <button
+                            onClick={() => setShowEditModal(true)}
+                            className="inline-flex items-center gap-2 bg-amber-500 text-white py-2.5 px-5 rounded-xl text-sm font-semibold hover:-translate-y-0.5 hover:shadow-lg transition-all"
+                        >
+                            <Pencil className="w-4 h-4" />
+                            Editar
+                        </button>
+                    )}
 
-                    <button
-                        onClick={() => setShowDeleteModal(true)}
-                        className="inline-flex items-center gap-2 bg-white border border-red-200 text-red-500 py-2.5 px-5 rounded-xl text-sm font-semibold hover:bg-red-50 transition-all ml-auto"
-                    >
-                        <Trash2 className="w-4 h-4" />
-                        Eliminar
-                    </button>
+                    {userRole.canDelete && (
+                        <button
+                            onClick={() => setShowDeleteModal(true)}
+                            className="inline-flex items-center gap-2 bg-white border border-red-200 text-red-500 py-2.5 px-5 rounded-xl text-sm font-semibold hover:bg-red-50 transition-all ml-auto"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            Eliminar
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -432,6 +438,7 @@ export default function AdminRegistroDetailPage({
                                 ruta={registro.ruta_ine}
                                 field="ruta_ine"
                                 registroId={registro.id}
+                                canDelete={userRole.canDelete}
                                 onDeleted={() =>
                                     setRegistro((prev) =>
                                         prev
@@ -446,6 +453,7 @@ export default function AdminRegistroDetailPage({
                                 ruta={registro.ruta_acta_nacimiento}
                                 field="ruta_acta_nacimiento"
                                 registroId={registro.id}
+                                canDelete={userRole.canDelete}
                                 onDeleted={() =>
                                     setRegistro((prev) =>
                                         prev
@@ -463,6 +471,7 @@ export default function AdminRegistroDetailPage({
                                 ruta={registro.ruta_comprobante_domicilio}
                                 field="ruta_comprobante_domicilio"
                                 registroId={registro.id}
+                                canDelete={userRole.canDelete}
                                 onDeleted={() =>
                                     setRegistro((prev) =>
                                         prev
@@ -567,6 +576,7 @@ function DocRow({
     ruta,
     field,
     registroId,
+    canDelete = true,
     onDeleted,
 }: {
     label: string;
@@ -574,6 +584,7 @@ function DocRow({
     ruta: string | null;
     field: string;
     registroId: number;
+    canDelete?: boolean;
     onDeleted: () => void;
 }) {
     const [deleting, setDeleting] = useState(false);
@@ -627,13 +638,15 @@ function DocRow({
                             <Eye className="w-3.5 h-3.5" />
                             Ver
                         </a>
-                        <button
-                            onClick={() => setShowConfirm(true)}
-                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-400 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors"
-                        >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            Eliminar
-                        </button>
+                        {canDelete && (
+                            <button
+                                onClick={() => setShowConfirm(true)}
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-400 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Eliminar
+                            </button>
+                        )}
                         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-full">
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             Subido

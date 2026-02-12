@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase-client";
 import { ACADEMIA_INFO } from "@/lib/constants";
+import { useUserRole } from "@/hooks/useUserRole";
 import {
     LayoutDashboard,
     Users,
@@ -13,48 +14,26 @@ import {
     Menu,
     X,
     ChevronRight,
+    Shield,
 } from "lucide-react";
 
 interface AdminLayoutProps {
     children: React.ReactNode;
 }
 
-const navItems = [
-    { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/admin/registros", label: "Registros", icon: Users },
-];
-
 export default function AdminPanelLayout({ children }: AdminLayoutProps) {
     const router = useRouter();
     const pathname = usePathname();
-    const [userName, setUserName] = useState("");
-    const [userRole, setUserRole] = useState("");
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const userRole = useUserRole();
 
-    useEffect(() => {
-        async function loadUser() {
-            const supabase = createClient();
-            const {
-                data: { user },
-            } = await supabase.auth.getUser();
-
-            if (user) {
-                const { data: adminUser } = await supabase
-                    .from("admin_users")
-                    .select("nombre, rol")
-                    .eq("user_id", user.id)
-                    .single();
-
-                if (adminUser) {
-                    setUserName(adminUser.nombre);
-                    setUserRole(adminUser.rol);
-                } else {
-                    setUserName(user.email || "");
-                }
-            }
-        }
-        loadUser();
-    }, []);
+    const navItems = [
+        { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/admin/registros", label: "Registros", icon: Users },
+        ...(userRole.canManageUsers
+            ? [{ href: "/admin/usuarios", label: "Usuarios", icon: Shield }]
+            : []),
+    ];
 
     async function handleLogout() {
         const supabase = createClient();
@@ -156,17 +135,17 @@ export default function AdminPanelLayout({ children }: AdminLayoutProps) {
                     <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center flex-shrink-0">
                             <span className="text-white text-xs font-bold">
-                                {getInitials(userName || "U")}
+                                {getInitials(userRole.nombre || "U")}
                             </span>
                         </div>
                         <div className="min-w-0">
                             <p className="font-semibold text-gray-700 text-sm truncate">
-                                {userName}
+                                {userRole.nombre}
                             </p>
                             <span
-                                className={`inline-block mt-0.5 text-[10px] px-2 py-0.5 rounded-full font-semibold ${getRoleBadgeClass(userRole)}`}
+                                className={`inline-block mt-0.5 text-[10px] px-2 py-0.5 rounded-full font-semibold ${getRoleBadgeClass(userRole.rol)}`}
                             >
-                                {getRoleLabel(userRole)}
+                                {getRoleLabel(userRole.rol)}
                             </span>
                         </div>
                     </div>

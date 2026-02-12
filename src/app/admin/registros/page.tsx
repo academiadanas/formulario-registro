@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const ITEMS_PER_PAGE = 15;
 
@@ -27,6 +28,7 @@ export default function AdminRegistrosPage() {
     const [cursoFilter, setCursoFilter] = useState("");
     const [docsFilter, setDocsFilter] = useState("");
     const [cursos, setCursos] = useState<string[]>([]);
+    const userRole = useUserRole();
 
     const loadRegistros = useCallback(async () => {
         setLoading(true);
@@ -183,15 +185,17 @@ export default function AdminRegistrosPage() {
                         encontrado{totalCount !== 1 ? "s" : ""}
                     </p>
                 </div>
-                <button
-                    onClick={handleExportFiltered}
-                    className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-700
-            py-2.5 px-5 rounded-xl text-sm font-semibold hover:bg-gray-50 hover:border-gray-300
-            transition-all shadow-sm"
-                >
-                    <Download className="w-4 h-4" />
-                    Exportar Filtrados
-                </button>
+                {userRole.canExport && (
+                    <button
+                        onClick={handleExportFiltered}
+                        className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-700
+                py-2.5 px-5 rounded-xl text-sm font-semibold hover:bg-gray-50 hover:border-gray-300
+                transition-all shadow-sm"
+                    >
+                        <Download className="w-4 h-4" />
+                        Exportar Filtrados
+                    </button>
+                )}
             </div>
 
             {/* Filtros */}
