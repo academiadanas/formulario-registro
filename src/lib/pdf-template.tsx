@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import {
     Document,
     Page,
@@ -11,7 +11,7 @@ import {
 import { Registro } from "@/types";
 import { ACADEMIA_INFO } from "@/lib/constants";
 
-// Estilos del PDF - Diseño profesional
+// Estilos del PDF - DiseÃ±o profesional
 const styles = StyleSheet.create({
     page: {
         padding: 50,
@@ -364,27 +364,11 @@ export function ComprobantePDF({ registro }: ComprobantePDFProps) {
                     </Text>
                 </View>
 
-                {/* Footer */}
-                <View style={styles.footer}>
-                    <View style={styles.footerRow}>
-                        <Text style={styles.footerItem}>
-                            {"\u260e"} {ACADEMIA_INFO.telefono}
-                        </Text>
-                        <Text style={styles.footerItem}>f academiadanas</Text>
-                        <Text style={styles.footerItem}>
-                            {"\u25cb"} academia_danas
-                        </Text>
-                        <Text style={styles.footerItem}>
-                            {"\u2709"} {ACADEMIA_INFO.correo}
-                        </Text>
-                    </View>
-                    <View style={styles.footerRow}>
-                        <Text style={styles.footerAddress}>
-                            {"\u25cf"} {ACADEMIA_INFO.direccion}
-                        </Text>
-                    </View>
-                </View>
+                
             </Page>
         </Document>
     );
 }
+
+
+
