@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import {
     Document,
     Page,
@@ -11,7 +11,7 @@ import {
 import { Registro } from "@/types";
 import { ACADEMIA_INFO } from "@/lib/constants";
 
-// Estilos del PDF - DiseÃ±o profesional
+// Estilos del PDF - Diseño profesional
 const styles = StyleSheet.create({
     page: {
         padding: 50,
@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontFamily: "Helvetica-Bold",
         color: "#333333",
-        textDecoration: "underline",
+        
     },
     // Filas de datos
     dataRow: {
@@ -114,7 +114,10 @@ const styles = StyleSheet.create({
     },
     // Nota final
     note: {
-        marginTop: 20,
+        position: "absolute",
+        bottom: 25,
+        left: 50,
+        right: 50,
     },
     noteText: {
         fontSize: 7,
@@ -344,7 +347,7 @@ export function ComprobantePDF({ registro }: ComprobantePDFProps) {
 
                 {/* Firma */}
                 <View style={styles.signatureSection}>
-                    <View style={styles.signatureLine} />
+                    
                     <Text style={styles.signatureLabel}>
                         Firma del estudiante
                     </Text>
@@ -369,6 +372,3 @@ export function ComprobantePDF({ registro }: ComprobantePDFProps) {
         </Document>
     );
 }
-
-
-
