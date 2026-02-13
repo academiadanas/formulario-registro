@@ -11,11 +11,11 @@ import {
 import { Registro } from "@/types";
 import { ACADEMIA_INFO } from "@/lib/constants";
 
-// Estilos del PDF - Diseño profesional con logo y footer
+// Estilos del PDF - Diseño profesional
 const styles = StyleSheet.create({
     page: {
         padding: 50,
-        paddingBottom: 80,
+        paddingBottom: 75,
         fontSize: 10,
         fontFamily: "Helvetica",
         color: "#333333",
@@ -24,39 +24,38 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 30,
-    },
-    logoContainer: {
-        width: 80,
-        marginRight: 20,
+        marginBottom: 25,
     },
     logo: {
-        width: 80,
-        height: 80,
+        width: 100,
+        height: 100,
         objectFit: "contain",
+        marginRight: 25,
     },
     headerTextContainer: {
         flex: 1,
     },
     title: {
-        fontSize: 16,
+        fontSize: 15,
         fontFamily: "Helvetica-Bold",
         color: "#333333",
         marginBottom: 3,
     },
     subtitle: {
-        fontSize: 12,
+        fontSize: 11,
         color: "#666666",
     },
-    // Sección con línea inferior
+    // Encabezado de secci\u00f3n con fondo sombreado
     sectionHeader: {
-        borderBottom: "2 solid #8B7355",
-        paddingBottom: 4,
-        marginBottom: 12,
-        marginTop: 20,
+        backgroundColor: "#f2f2f2",
+        borderBottom: "1 solid #cccccc",
+        padding: 6,
+        paddingLeft: 10,
+        marginBottom: 10,
+        marginTop: 14,
     },
     sectionHeaderText: {
-        fontSize: 11,
+        fontSize: 10,
         fontFamily: "Helvetica-Bold",
         color: "#333333",
         textDecoration: "underline",
@@ -64,38 +63,35 @@ const styles = StyleSheet.create({
     // Filas de datos
     dataRow: {
         flexDirection: "row",
-        marginBottom: 8,
-        paddingLeft: 10,
+        marginBottom: 6,
+        paddingLeft: 15,
     },
     label: {
-        width: "35%",
-        fontSize: 10,
+        width: "30%",
+        fontSize: 9.5,
         color: "#555555",
     },
     value: {
-        width: "65%",
-        fontSize: 10,
+        width: "70%",
+        fontSize: 9.5,
         color: "#333333",
     },
     // Declaraciones
     declarationsSection: {
-        marginTop: 30,
-        paddingTop: 15,
-        borderTop: "1 solid #cccccc",
+        marginTop: 20,
         alignItems: "center",
     },
     declarationsTitle: {
-        fontSize: 11,
+        fontSize: 10,
         fontFamily: "Helvetica-Bold",
         color: "#333333",
-        marginBottom: 8,
+        marginBottom: 6,
         textAlign: "center",
     },
     declarationsText: {
-        fontSize: 9,
-        lineHeight: 1.6,
+        fontSize: 8.5,
+        lineHeight: 1.5,
         color: "#555555",
-        marginBottom: 10,
         textAlign: "center",
     },
     link: {
@@ -104,11 +100,11 @@ const styles = StyleSheet.create({
     },
     // Firma
     signatureSection: {
-        marginTop: 50,
+        marginTop: 40,
         alignItems: "center",
     },
     signatureLine: {
-        width: 250,
+        width: 220,
         borderBottom: "1 solid #333333",
         marginBottom: 5,
     },
@@ -118,13 +114,12 @@ const styles = StyleSheet.create({
     },
     // Nota final
     note: {
-        marginTop: 30,
-        paddingTop: 10,
+        marginTop: 20,
     },
     noteText: {
-        fontSize: 7.5,
+        fontSize: 7,
         color: "#888888",
-        lineHeight: 1.5,
+        lineHeight: 1.4,
         fontStyle: "italic",
     },
     // Footer
@@ -136,29 +131,17 @@ const styles = StyleSheet.create({
         borderTop: "1 solid #dddddd",
         paddingTop: 8,
     },
-    footerTop: {
+    footerRow: {
         flexDirection: "row",
         justifyContent: "center",
-        marginBottom: 5,
-        gap: 25,
+        alignItems: "center",
+        marginBottom: 4,
     },
     footerItem: {
-        flexDirection: "row",
-        alignItems: "center",
-    },
-    footerIcon: {
-        fontSize: 8,
-        color: "#666666",
-        marginRight: 3,
-    },
-    footerText: {
         fontSize: 7.5,
         color: "#666666",
-    },
-    footerBottom: {
-        flexDirection: "row",
-        justifyContent: "center",
-        alignItems: "center",
+        marginLeft: 8,
+        marginRight: 8,
     },
     footerAddress: {
         fontSize: 7.5,
@@ -242,7 +225,7 @@ function DataRow({ label, value }: { label: string; value: string }) {
     return (
         <View style={styles.dataRow}>
             <Text style={styles.label}>{label}</Text>
-            <Text style={styles.value}>{value || "—"}</Text>
+            <Text style={styles.value}>{value || "\u2014"}</Text>
         </View>
     );
 }
@@ -261,12 +244,11 @@ export function ComprobantePDF({ registro }: ComprobantePDFProps) {
             <Page size="LETTER" style={styles.page}>
                 {/* Header con Logo */}
                 <View style={styles.header}>
-                    <View style={styles.logoContainer}>
-                        <Image style={styles.logo} src={ACADEMIA_INFO.logo} />
-                    </View>
+                    <Image style={styles.logo} src={ACADEMIA_INFO.logo} />
                     <View style={styles.headerTextContainer}>
                         <Text style={styles.title}>
-                            Comprobante de Inscripción y Carta Compromiso
+                            Comprobante de Inscripci{"\u00f3"}n y Carta
+                            Compromiso
                         </Text>
                         <Text style={styles.subtitle}>
                             {ACADEMIA_INFO.nombre}
@@ -274,10 +256,10 @@ export function ComprobantePDF({ registro }: ComprobantePDFProps) {
                     </View>
                 </View>
 
-                {/* Información del Registro */}
+                {/* Informacion del Registro */}
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionHeaderText}>
-                        Información del Registro
+                        Informaci{"\u00f3"}n del Registro
                     </Text>
                 </View>
                 <View>
@@ -290,7 +272,7 @@ export function ComprobantePDF({ registro }: ComprobantePDFProps) {
                         value={formatFechaRegistro(registro.fecha_registro)}
                     />
                     <DataRow
-                        label="Curso de Interés:"
+                        label={`Curso de Inter${"\u00e9"}s:`}
                         value={registro.curso || ""}
                     />
                 </View>
@@ -304,11 +286,11 @@ export function ComprobantePDF({ registro }: ComprobantePDFProps) {
                 <View>
                     <DataRow label="Nombre Completo:" value={nombreCompleto} />
                     <DataRow
-                        label="Correo Electrónico:"
+                        label={`Correo Electr${"\u00f3"}nico:`}
                         value={registro.correo_electronico || ""}
                     />
                     <DataRow
-                        label="Teléfono Celular:"
+                        label={`Tel${"\u00e9"}fono Celular:`}
                         value={registro.telefono_celular || ""}
                     />
                     <DataRow
@@ -324,7 +306,7 @@ export function ComprobantePDF({ registro }: ComprobantePDFProps) {
                         value={registro.estado_civil || ""}
                     />
                     <DataRow
-                        label="Último Grado Estudios:"
+                        label={`${"\u00da"}ltimo Grado Estudios:`}
                         value={registro.grado_estudios || ""}
                     />
                 </View>
@@ -337,7 +319,7 @@ export function ComprobantePDF({ registro }: ComprobantePDFProps) {
                 </View>
                 <View>
                     <DataRow
-                        label="Dirección Completa:"
+                        label={`Direcci${"\u00f3"}n Completa:`}
                         value={buildDomicilio(registro)}
                     />
                 </View>
@@ -348,9 +330,9 @@ export function ComprobantePDF({ registro }: ComprobantePDFProps) {
                         DECLARACIONES Y COMPROMISOS DEL ESTUDIANTE
                     </Text>
                     <Text style={styles.declarationsText}>
-                        Al firmar este documento, declaro haber leído y aceptado
-                        las siguientes disposiciones del Reglamento General de
-                        Alumnos de Academia Danas:{" "}
+                        Al firmar este documento, declaro haber le{"\u00ed"}do y
+                        aceptado las siguientes disposiciones del Reglamento
+                        General de Alumnos de Academia Danas:{" "}
                         <Link
                             src={ACADEMIA_INFO.reglamento}
                             style={styles.link}
@@ -371,45 +353,34 @@ export function ComprobantePDF({ registro }: ComprobantePDFProps) {
                 {/* Nota */}
                 <View style={styles.note}>
                     <Text style={styles.noteText}>
-                        Nota Importante: Este documento es un comprobante
-                        electrónico de la recepción de tu solicitud de
-                        inscripción en Academia Danas. La inscripción formal
-                        está sujeta a la validación de los documentos y al
-                        proceso interno de la academia. Nos pondremos en
-                        contacto contigo a la brevedad para informarte sobre los
-                        siguientes pasos. Conserva este comprobante.
+                        Nota Importante: Este documento es un comprobante electr
+                        {"\u00f3"}nico de la recepci{"\u00f3"}n de tu solicitud
+                        de inscripci{"\u00f3"}n en Academia Danas. La inscripci
+                        {"\u00f3"}n formal est{"\u00e1"} sujeta a la validaci
+                        {"\u00f3"}n de los documentos y al proceso interno de la
+                        academia. Nos pondremos en contacto contigo a la
+                        brevedad para informarte sobre los siguientes pasos.
+                        Conserva este comprobante.
                     </Text>
                 </View>
 
                 {/* Footer */}
                 <View style={styles.footer}>
-                    <View style={styles.footerTop}>
-                        <View style={styles.footerItem}>
-                            <Text style={styles.footerIcon}>✆</Text>
-                            <Text style={styles.footerText}>
-                                {ACADEMIA_INFO.telefono}
-                            </Text>
-                        </View>
-                        <View style={styles.footerItem}>
-                            <Text style={styles.footerIcon}>f</Text>
-                            <Text style={styles.footerText}>academiadanas</Text>
-                        </View>
-                        <View style={styles.footerItem}>
-                            <Text style={styles.footerIcon}>◉</Text>
-                            <Text style={styles.footerText}>
-                                academia_danas
-                            </Text>
-                        </View>
-                        <View style={styles.footerItem}>
-                            <Text style={styles.footerIcon}>✉</Text>
-                            <Text style={styles.footerText}>
-                                {ACADEMIA_INFO.correo}
-                            </Text>
-                        </View>
+                    <View style={styles.footerRow}>
+                        <Text style={styles.footerItem}>
+                            {"\u260e"} {ACADEMIA_INFO.telefono}
+                        </Text>
+                        <Text style={styles.footerItem}>f academiadanas</Text>
+                        <Text style={styles.footerItem}>
+                            {"\u25cb"} academia_danas
+                        </Text>
+                        <Text style={styles.footerItem}>
+                            {"\u2709"} {ACADEMIA_INFO.correo}
+                        </Text>
                     </View>
-                    <View style={styles.footerBottom}>
+                    <View style={styles.footerRow}>
                         <Text style={styles.footerAddress}>
-                            ● {ACADEMIA_INFO.direccion}
+                            {"\u25cf"} {ACADEMIA_INFO.direccion}
                         </Text>
                     </View>
                 </View>
