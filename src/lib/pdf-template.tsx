@@ -58,7 +58,6 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontFamily: "Helvetica-Bold",
         color: "#333333",
-        
     },
     // Filas de datos
     dataRow: {
@@ -75,6 +74,7 @@ const styles = StyleSheet.create({
         width: "70%",
         fontSize: 9.5,
         color: "#333333",
+        wordBreak: "keep-all",
     },
     // Declaraciones
     declarationsSection: {
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     },
     // Firma
     signatureSection: {
-        marginTop: 40,
+        marginTop: 60,
         alignItems: "center",
     },
     signatureLine: {
@@ -347,7 +347,6 @@ export function ComprobantePDF({ registro }: ComprobantePDFProps) {
 
                 {/* Firma */}
                 <View style={styles.signatureSection}>
-                    
                     <Text style={styles.signatureLabel}>
                         Firma del estudiante
                     </Text>
@@ -366,8 +365,6 @@ export function ComprobantePDF({ registro }: ComprobantePDFProps) {
                         Conserva este comprobante.
                     </Text>
                 </View>
-
-                
             </Page>
         </Document>
     );
