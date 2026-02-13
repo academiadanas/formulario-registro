@@ -7,9 +7,12 @@ import {
     StyleSheet,
     Link,
     Image,
+    Font,
 } from "@react-pdf/renderer";
 import { Registro } from "@/types";
 import { ACADEMIA_INFO } from "@/lib/constants";
+
+Font.registerHyphenationCallback((word) => [word]);
 
 // Estilos del PDF - Diseño profesional
 const styles = StyleSheet.create({
@@ -74,7 +77,6 @@ const styles = StyleSheet.create({
         width: "70%",
         fontSize: 9.5,
         color: "#333333",
-        wordBreak: "keep-all",
     },
     // Declaraciones
     declarationsSection: {
