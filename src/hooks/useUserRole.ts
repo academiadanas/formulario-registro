@@ -58,34 +58,49 @@ export function useUserRole(): UserInfo {
                 },
             );
 
-            if (acceso?.tiene_acceso) {
-                const rol = acceso.rol;
-                setInfo({
-                    userId: user.id,
-                    email: user.email || "",
-                    nombre: acceso.nombre || "",
-                    rol,
-                    isAdmin: rol === "admin",
-                    isEditor: rol === "editor" || rol === "capturista",
-                    isViewer: rol === "viewer" || rol === "solo_lectura",
-                    canEdit:
-                        rol === "admin" ||
-                        rol === "editor" ||
-                        rol === "capturista",
-                    canDelete: rol === "admin",
-                    canExport:
-                        rol === "admin" ||
-                        rol === "editor" ||
-                        rol === "capturista",
-                    canManageUsers: rol === "admin",
+            if (!acceso?.tiene_acceso) {
+                setInfo((prev) => ({
+                    ...prev,
                     loading: false,
-                    sinAcceso: false,
-                });
+                    sinAcceso: true,
+                }));
                 return;
             }
 
-            // Sin acceso centralizado
-            setInfo((prev) => ({ ...prev, loading: false, sinAcceso: true }));
+            const rol = acceso.rol;
+
+            // 2. Obtener permisos granulares
+            const { data: permisosData } = await supabase.rpc(
+                "obtener_permisos_usuario",
+                {
+                    app_slug: "inscripciones",
+                },
+            );
+
+            const mapa: Record<string, boolean> = {};
+            if (permisosData && Array.isArray(permisosData)) {
+                permisosData.forEach(
+                    (p: { clave: string; activo: boolean }) => {
+                        mapa[p.clave] = p.activo;
+                    },
+                );
+            }
+
+            setInfo({
+                userId: user.id,
+                email: user.email || "",
+                nombre: acceso.nombre || "",
+                rol,
+                isAdmin: rol === "admin",
+                isEditor: rol === "editor" || rol === "capturista",
+                isViewer: rol === "viewer" || rol === "solo_lectura",
+                canEdit: mapa["editar_registro"] ?? rol === "admin",
+                canDelete: mapa["eliminar_registro"] ?? rol === "admin",
+                canExport: mapa["exportar_datos"] ?? rol === "admin",
+                canManageUsers: mapa["gestionar_usuarios"] ?? rol === "admin",
+                loading: false,
+                sinAcceso: false,
+            });
         }
         load();
     }, []);
