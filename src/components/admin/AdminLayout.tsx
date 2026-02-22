@@ -26,6 +26,12 @@ export default function AdminPanelLayout({ children }: AdminLayoutProps) {
     const pathname = usePathname();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const userRole = useUserRole();
+    useEffect(() => {
+        if (!userRole.loading && userRole.sinAcceso) {
+            window.location.href =
+                "https://sistema.academiadanas.com/dashboard?sin_acceso=inscripciones";
+        }
+    }, [userRole.loading, userRole.sinAcceso]);
 
     const navItems = [
         { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
