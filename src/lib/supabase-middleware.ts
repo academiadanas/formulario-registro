@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+const cookieDomain = '.academiadanas.com';
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -22,19 +24,23 @@ export async function updateSession(request: NextRequest) {
             request,
           });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, {
+              ...options,
+              domain: cookieDomain,
+              path: '/',
+              sameSite: 'lax',
+              secure: true,
+            })
           );
         },
       },
     }
   );
 
-  // Refrescar la sesión si existe
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Proteger rutas /admin (excepto /admin/login)
   if (
     !user &&
     request.nextUrl.pathname.startsWith('/admin') &&
@@ -45,7 +51,6 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Si el usuario está logueado y va a /admin/login, redirigir al dashboard
   if (user && request.nextUrl.pathname === '/admin/login') {
     const url = request.nextUrl.clone();
     url.pathname = '/admin';

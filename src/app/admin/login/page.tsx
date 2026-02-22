@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase-client';
@@ -12,6 +12,19 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  // Verificar si ya hay sesión (SSO desde Sistema DANAS)
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        router.push('/admin');
+      } else {
+        setChecking(false);
+      }
+    });
+  }, [router]);
 
   async function handleLogin(e: FormEvent) {
     e.preventDefault();
@@ -37,6 +50,14 @@ export default function AdminLoginPage() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  if (checking) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 flex items-center justify-center">
+        <p className="text-gray-400 text-sm">Verificando sesión...</p>
+      </main>
+    );
   }
 
   return (
