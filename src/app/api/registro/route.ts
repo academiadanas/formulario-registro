@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { FILE_CONFIG } from "@/lib/constants";
 
+// Función para convertir MAYÚSCULAS a Formato Título
+function toTitleCase(str: string): string {
+    if (!str) return '';
+    return str
+        .toLowerCase()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+}
+
 export async function POST(request: NextRequest) {
     try {
         const supabase = await createServerSupabaseClient();
@@ -155,6 +165,49 @@ export async function POST(request: NextRequest) {
                 console.error("Error actualizando rutas:", updateError);
             }
         }
+
+        // === INSERT AUTOMÁTICO EN ALUMNAS ===
+        try {
+            // Determinar procedencia según país de domicilio
+            let procedencia = '';
+            const paisDom = registroData.pais_domicilio || '';
+            
+            if (paisDom === 'MEXICO') {
+                procedencia = registroData.municipio_domicilio || '';
+            } else if (paisDom === 'ESTADOS UNIDOS') {
+                procedencia = registroData.estado_domicilio || '';
+            } else {
+                // Otro país: usa estado_domicilio (que contiene estado/provincia)
+                procedencia = registroData.estado_domicilio || '';
+            }
+
+            const nombreCompleto = `${registroData.nombre || ''} ${registroData.apellido_paterno || ''} ${registroData.apellido_materno || ''}`.trim();
+
+            const alumnaData = {
+                nombre_completo: toTitleCase(nombreCompleto),
+                celular: registroData.telefono_celular || null,
+                email: registroData.correo_electronico || null,
+                fecha_nacimiento: registroData.fecha_nacimiento || null,
+                estado_civil: toTitleCase(registroData.estado_civil || ''),
+                nivel_estudios: toTitleCase(registroData.grado_estudios || ''),
+                procedencia: toTitleCase(procedencia),
+                nombre_emergencia_1: toTitleCase(registroData.familiar_nombre || ''),
+                tel_emergencia_1: registroData.familiar_telefono || null,
+                nombre_emergencia_2: toTitleCase(registroData.emergencia_nombre || ''),
+                tel_emergencia_2: registroData.emergencia_telefono || null,
+            };
+
+            const { error: alumnaError } = await supabase
+                .from('alumnas')
+                .insert(alumnaData);
+
+            if (alumnaError) {
+                console.error('Error insertando en alumnas:', alumnaError);
+            }
+        } catch (alumnaErr) {
+            console.error('Error en inserción automática a alumnas:', alumnaErr);
+        }
+        // === FIN INSERT ALUMNAS ===
 
         return NextResponse.json({
             success: true,
