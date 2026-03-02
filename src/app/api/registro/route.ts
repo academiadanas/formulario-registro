@@ -166,12 +166,12 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // === INSERT AUTOMÁTICO EN ALUMNAS ===
+        // === INSERT O UPDATE AUTOMÁTICO EN ALUMNAS ===
         try {
             // Determinar procedencia según país de domicilio
             let procedencia = '';
             const paisDom = registroData.pais_domicilio || '';
-            
+
             if (paisDom === 'MEXICO') {
                 procedencia = registroData.municipio_domicilio || '';
             } else if (paisDom === 'ESTADOS UNIDOS') {
@@ -183,31 +183,65 @@ export async function POST(request: NextRequest) {
 
             const nombreCompleto = `${registroData.nombre || ''} ${registroData.apellido_paterno || ''} ${registroData.apellido_materno || ''}`.trim();
 
-            const alumnaData = {
-                nombre_completo: toTitleCase(nombreCompleto),
-                celular: registroData.telefono_celular || null,
-                email: registroData.correo_electronico || null,
-                fecha_nacimiento: registroData.fecha_nacimiento || null,
-                estado_civil: toTitleCase(registroData.estado_civil || ''),
-                nivel_estudios: toTitleCase(registroData.grado_estudios || ''),
-                procedencia: toTitleCase(procedencia),
-                nombre_emergencia_1: toTitleCase(registroData.familiar_nombre || ''),
-                tel_emergencia_1: registroData.familiar_telefono || null,
-                nombre_emergencia_2: toTitleCase(registroData.emergencia_nombre || ''),
-                tel_emergencia_2: registroData.emergencia_telefono || null,
-            };
-
-            const { error: alumnaError } = await supabase
+            // Buscar si ya existe una alumna con ese correo
+            const emailBusqueda = registroData.correo_electronico;
+            const { data: alumnaExistente } = await supabase
                 .from('alumnas')
-                .insert(alumnaData);
+                .select('id')
+                .eq('email', emailBusqueda)
+                .maybeSingle();
 
-            if (alumnaError) {
-                console.error('Error insertando en alumnas:', alumnaError);
+            if (alumnaExistente) {
+                // Actualizar datos de la alumna existente (NO actualizar sexo)
+                const alumnaUpdate = {
+                    nombre_completo: toTitleCase(nombreCompleto),
+                    celular: registroData.telefono_celular || null,
+                    fecha_nacimiento: registroData.fecha_nacimiento || null,
+                    estado_civil: toTitleCase(registroData.estado_civil || ''),
+                    nivel_estudios: toTitleCase(registroData.grado_estudios || ''),
+                    procedencia: toTitleCase(procedencia),
+                    nombre_emergencia_1: toTitleCase(registroData.familiar_nombre || ''),
+                    tel_emergencia_1: registroData.familiar_telefono || null,
+                    nombre_emergencia_2: toTitleCase(registroData.emergencia_nombre || ''),
+                    tel_emergencia_2: registroData.emergencia_telefono || null,
+                };
+
+                const { error: updateAlumnaError } = await supabase
+                    .from('alumnas')
+                    .update(alumnaUpdate)
+                    .eq('id', alumnaExistente.id);
+
+                if (updateAlumnaError) {
+                    console.error('Error actualizando alumna existente:', updateAlumnaError);
+                }
+            } else {
+                // Insertar nueva alumna
+                const alumnaInsert = {
+                    nombre_completo: toTitleCase(nombreCompleto),
+                    celular: registroData.telefono_celular || null,
+                    email: emailBusqueda || null,
+                    fecha_nacimiento: registroData.fecha_nacimiento || null,
+                    estado_civil: toTitleCase(registroData.estado_civil || ''),
+                    nivel_estudios: toTitleCase(registroData.grado_estudios || ''),
+                    procedencia: toTitleCase(procedencia),
+                    nombre_emergencia_1: toTitleCase(registroData.familiar_nombre || ''),
+                    tel_emergencia_1: registroData.familiar_telefono || null,
+                    nombre_emergencia_2: toTitleCase(registroData.emergencia_nombre || ''),
+                    tel_emergencia_2: registroData.emergencia_telefono || null,
+                };
+
+                const { error: insertAlumnaError } = await supabase
+                    .from('alumnas')
+                    .insert(alumnaInsert);
+
+                if (insertAlumnaError) {
+                    console.error('Error insertando en alumnas:', insertAlumnaError);
+                }
             }
         } catch (alumnaErr) {
-            console.error('Error en inserción automática a alumnas:', alumnaErr);
+            console.error('Error en inserción/actualización automática a alumnas:', alumnaErr);
         }
-        // === FIN INSERT ALUMNAS ===
+        // === FIN INSERT/UPDATE ALUMNAS ===
 
         return NextResponse.json({
             success: true,
