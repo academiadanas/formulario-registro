@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { createPublicSupabaseClient } from '@/lib/supabase-public';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createServerSupabaseClient();
+    const supabase = createPublicSupabaseClient();
 
     const { data, error } = await supabase.rpc('buscar_registro', {
       p_correo: correo,
