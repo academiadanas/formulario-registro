@@ -15,6 +15,8 @@ function toTitleCase(str: string): string {
 export async function POST(request: NextRequest) {
     try {
         const supabase = await createServerSupabaseClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log("Session:", session ? "authenticated" : "no session (anon)");
         const formData = await request.formData();
 
         // Extraer datos del formulario
