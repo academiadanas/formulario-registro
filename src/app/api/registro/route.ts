@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createPublicSupabaseClient } from "@/lib/supabase-public";
 import { FILE_CONFIG } from "@/lib/constants";
 
 // Función para convertir MAYÚSCULAS a Formato Título
@@ -14,9 +14,7 @@ function toTitleCase(str: string): string {
 
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createServerSupabaseClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log("Session:", session ? "authenticated" : "no session (anon)");
+        const supabase = createPublicSupabaseClient();
         const formData = await request.formData();
 
         // Extraer datos del formulario

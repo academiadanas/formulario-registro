@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { createPublicSupabaseClient } from '@/lib/supabase-public';
 import { CatalogosAgrupados } from '@/types';
 
 export async function GET() {
   try {
-    const supabase = await createServerSupabaseClient();
+    const supabase = createPublicSupabaseClient();
 
     const { data, error } = await supabase
       .from('catalogos')
