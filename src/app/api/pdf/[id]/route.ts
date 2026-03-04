@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { createPublicSupabaseClient } from '@/lib/supabase-public';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { ComprobantePDF } from '@/lib/pdf-template';
 import { buildEmailHTML } from '@/lib/email-template';
@@ -26,7 +26,7 @@ export async function POST(
     }
 
     // Obtener registro
-    const supabase = await createServerSupabaseClient();
+    const supabase = createPublicSupabaseClient();
     const { data: registro, error } = await supabase
       .from('registros')
       .select('*')
@@ -126,7 +126,7 @@ export async function GET(
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
     }
 
-    const supabase = await createServerSupabaseClient();
+    const supabase = createPublicSupabaseClient();
     const { data: registro, error } = await supabase
       .from('registros')
       .select('*')
