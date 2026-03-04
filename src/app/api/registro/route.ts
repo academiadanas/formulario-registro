@@ -15,6 +15,8 @@ function toTitleCase(str: string): string {
 export async function POST(request: NextRequest) {
     try {
         const supabase = createPublicSupabaseClient();
+        console.log("SUPABASE_URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
+        console.log("ANON_KEY starts with:", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 30));
         const formData = await request.formData();
 
         // Extraer datos del formulario
