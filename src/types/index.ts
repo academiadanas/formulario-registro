@@ -60,6 +60,7 @@ export interface Registro {
   // Metadatos
   fecha_registro: string;
   updated_at: string;
+  contrato_enviado_at?: string;
 }
 
 // Datos del formulario de inscripción (sin id ni metadatos)

@@ -11,8 +11,6 @@ interface PDFResult {
   emailSent: boolean;
   emailError?: string;
   correoEnviado?: string;
-  whatsappLink?: string;
-  pdfFileName?: string;
   error?: string;
 }
 
@@ -28,7 +26,7 @@ function GraciasContent() {
       return;
     }
 
-    // Generar PDF y enviar correo automáticamente
+    // Enviar correo automáticamente
     fetch(`/api/pdf/${registroId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -79,11 +77,11 @@ function GraciasContent() {
             </div>
           )}
 
-          {/* Estado del PDF y correo */}
+          {/* Estado del correo */}
           {status === 'loading' && (
             <div className="my-6 animate-[fadeIn_0.4s_ease]">
               <div className="w-10 h-10 border-4 border-primary-light border-t-primary rounded-full animate-spin mx-auto" />
-              <p className="mt-4 text-gray-500 text-sm">Generando y enviando tu comprobante...</p>
+              <p className="mt-4 text-gray-500 text-sm">Enviando correo de confirmación...</p>
               <p className="mt-1 text-gray-400 text-xs">Esto puede tardar unos segundos</p>
             </div>
           )}
@@ -93,9 +91,9 @@ function GraciasContent() {
               {/* Correo enviado */}
               {result.emailSent && (
                 <div className="bg-green-50 border-2 border-green-200 rounded-xl p-5">
-                  <p className="text-green-800 font-semibold mb-2">✅ ¡Comprobante enviado!</p>
+                  <p className="text-green-800 font-semibold mb-2">✅ ¡Correo enviado!</p>
                   <p className="text-green-700 text-sm">
-                    📧 Correo enviado a: <strong>{result.correoEnviado}</strong>
+                    📧 Se envió a: <strong>{result.correoEnviado}</strong>
                   </p>
                   <p className="text-green-600 text-xs mt-1">
                     Revisa tu bandeja de entrada y carpeta de spam.
@@ -103,37 +101,29 @@ function GraciasContent() {
                 </div>
               )}
 
-              {/* Correo no enviado pero PDF generado */}
+              {/* Correo no enviado */}
               {!result.emailSent && (
                 <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-5">
-                  <p className="text-orange-800 font-semibold mb-2">⚠️ PDF generado</p>
+                  <p className="text-orange-800 font-semibold mb-2">⚠️ Registro guardado</p>
                   <p className="text-orange-700 text-sm">
-                    {result.emailError || 'El correo no pudo ser enviado, pero puedes descargar tu comprobante.'}
+                    {result.emailError || 'El correo no pudo ser enviado.'}
                   </p>
                 </div>
               )}
 
-              {/* Botones de acción */}
-              <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
+              {/* Enlace al contrato */}
+              <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-5 mt-4">
+                <p className="text-gray-700 text-sm mb-3">
+                  Te invitamos a leer el <strong>Contrato de Prestación de Servicios Educativos</strong> antes de tu primer día de clases:
+                </p>
                 <a
-                  href={`/api/pdf/${registroId}`}
+                  href="https://www.academiadanas.com/contrato-servicios-educativos"
                   target="_blank"
                   className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-primary-dark
                     text-white py-3 px-6 rounded-xl font-semibold hover:-translate-y-0.5 hover:shadow-lg transition-all"
                 >
-                  📄 Ver PDF
+                  📄 Ver Contrato de Servicios Educativos
                 </a>
-
-                {result.whatsappLink && (
-                  <a
-                    href={result.whatsappLink}
-                    target="_blank"
-                    className="inline-flex items-center justify-center gap-2 bg-[#25d366] text-white
-                      py-3 px-6 rounded-xl font-semibold hover:-translate-y-0.5 hover:shadow-lg transition-all"
-                  >
-                    📱 Enviar por WhatsApp
-                  </a>
-                )}
               </div>
             </div>
           )}
@@ -142,7 +132,7 @@ function GraciasContent() {
             <div className="bg-red-50 border-2 border-red-200 rounded-xl p-5 my-6">
               <p className="text-red-800 font-semibold mb-2">❌ Error</p>
               <p className="text-red-700 text-sm">
-                {result?.error || 'No se pudo generar el comprobante.'}
+                {result?.error || 'No se pudo enviar el correo de confirmación.'}
               </p>
               {registroId && (
                 <button
@@ -168,6 +158,25 @@ function GraciasContent() {
               )}
             </div>
           )}
+
+          {/* Texto legal */}
+          <div className="mt-6 bg-gray-50 border border-gray-200 rounded-xl p-4">
+            <p className="text-gray-500 text-xs leading-relaxed">
+              Al completar tu registro, confirmas haber recibido el enlace al{' '}
+              <a href="https://www.academiadanas.com/contrato-servicios-educativos" target="_blank" className="text-primary underline">
+                Contrato de Prestación de Servicios Educativos
+              </a>{' '}
+              disponible en academiadanas.com/contrato-servicios-educativos, así como los{' '}
+              <a href="https://www.academiadanas.com/terminos-condiciones" target="_blank" className="text-primary underline">
+                Términos y Condiciones
+              </a>{' '}
+              (academiadanas.com/terminos-condiciones) y el{' '}
+              <a href="https://www.academiadanas.com/aviso-privacidad" target="_blank" className="text-primary underline">
+                Aviso de Privacidad
+              </a>{' '}
+              (academiadanas.com/aviso-privacidad).
+            </p>
+          </div>
 
           {/* Links */}
           <div className="mt-8 space-y-3">

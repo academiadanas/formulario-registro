@@ -19,7 +19,6 @@ export async function POST(
   try {
     const { id } = await params;
     const registroId = parseInt(id);
-    const { action } = await request.json().catch(() => ({ action: 'generate' }));
 
     if (isNaN(registroId)) {
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
@@ -37,63 +36,32 @@ export async function POST(
       return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 });
     }
 
-    // Generar PDF
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pdfElement = React.createElement(ComprobantePDF, { registro: registro as Registro }) as any;
-    const pdfBuffer = await renderToBuffer(pdfElement);
-    const pdfUint8 = new Uint8Array(pdfBuffer);
-
-    const nombreCompleto = `${registro.nombre} ${registro.apellido_paterno} ${registro.apellido_materno}`.trim();
-    const pdfFileName = `Comprobante_${nombreCompleto.replace(/\s+/g, '_')}_Folio_${registroId}.pdf`;
-
-    // Si la acción es solo descargar, devolver el PDF
-    if (action === 'download') {
-      return new NextResponse(pdfUint8, {
-        headers: {
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="${pdfFileName}"`,
-        },
-      });
-    }
-
     // Enviar correo
     let emailSent = false;
     let emailError = '';
 
-    if (action === 'send' || action === 'generate') {
-      if (resend && registro.correo_electronico) {
-        try {
-          await resend.emails.send({
-            from: `${ACADEMIA_INFO.nombre} <${ACADEMIA_INFO.correo}>`,
-            to: registro.correo_electronico,
-            subject: `✅ Comprobante de Inscripción - ${ACADEMIA_INFO.nombre} (Folio #${registroId})`,
-            html: buildEmailHTML(registro as Registro),
-            attachments: [
-              {
-                filename: pdfFileName,
-                content: Buffer.from(pdfBuffer),
-              },
-            ],
-          });
-          emailSent = true;
-        } catch (err) {
-          console.error('Error enviando correo:', err);
-          emailError = err instanceof Error ? err.message : 'Error al enviar correo';
-        }
-      } else if (!resend) {
-        emailError = 'Servicio de correo no configurado';
-      }
-    }
+    if (resend && registro.correo_electronico) {
+      try {
+        await resend.emails.send({
+          from: `${ACADEMIA_INFO.nombre} <${ACADEMIA_INFO.correo}>`,
+          to: registro.correo_electronico,
+          subject: `✅ Confirmación de Inscripción - ${ACADEMIA_INFO.nombre} (Folio #${registroId})`,
+          html: buildEmailHTML(registro as Registro),
+        });
+        emailSent = true;
 
-    // Enlace de WhatsApp
-    const telefono = registro.telefono_celular;
-    const mensajeWhatsApp = encodeURIComponent(
-      `¡Hola ${nombreCompleto}! 🎉\n\n` +
-      `Gracias por registrarte en ${ACADEMIA_INFO.nombre}.\n\n` +
-      `📋 Tu folio de inscripción es: #${registroId}\n\n` +
-      `Te contactaremos pronto para los siguientes pasos. ¡Gracias!`
-    );
-    const whatsappLink = `https://wa.me/52${telefono}?text=${mensajeWhatsApp}`;
+        // Registrar que el correo con el contrato fue enviado
+        await supabase
+          .from('registros')
+          .update({ contrato_enviado_at: new Date().toISOString() })
+          .eq('id', registroId);
+      } catch (err) {
+        console.error('Error enviando correo:', err);
+        emailError = err instanceof Error ? err.message : 'Error al enviar correo';
+      }
+    } else if (!resend) {
+      emailError = 'Servicio de correo no configurado';
+    }
 
     return NextResponse.json({
       success: true,
@@ -101,13 +69,11 @@ export async function POST(
       emailSent,
       emailError,
       correoEnviado: registro.correo_electronico,
-      whatsappLink,
-      pdfFileName,
     });
   } catch (error) {
-    console.error('Error generando PDF:', error);
+    console.error('Error en API correo:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Error al generar PDF' },
+      { error: error instanceof Error ? error.message : 'Error al enviar correo' },
       { status: 500 }
     );
   }
