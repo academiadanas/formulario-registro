@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-public";
-import { FILE_CONFIG } from "@/lib/constants";
 
 // Función para convertir MAYÚSCULAS a Formato Título
 function toTitleCase(str: string): string {
@@ -15,7 +14,7 @@ function toTitleCase(str: string): string {
 export async function POST(request: NextRequest) {
     try {
         const supabase = createPublicSupabaseClient();
-        const formData = await request.formData();
+        const body = await request.json();
 
         // Extraer datos del formulario
         const registroData: Record<string, string> = {};
@@ -57,8 +56,8 @@ export async function POST(request: NextRequest) {
         ];
 
         for (const campo of campos) {
-            const valor = formData.get(campo);
-            if (valor !== null && typeof valor === "string") {
+            const valor = body[campo];
+            if (valor !== undefined && typeof valor === "string") {
                 registroData[campo] = valor.trim();
             }
         }
@@ -111,60 +110,6 @@ export async function POST(request: NextRequest) {
         }
 
         const registroId = registro.id;
-
-        // Procesar archivos
-        const archivos = ["ine", "acta_nacimiento", "comprobante_domicilio"];
-        const rutasArchivos: Record<string, string> = {};
-
-        for (const archivo of archivos) {
-            const file = formData.get(archivo);
-
-            if (file && file instanceof File && file.size > 0) {
-                // Validar tamaño
-                if (file.size > FILE_CONFIG.maxSize) {
-                    continue;
-                }
-
-                // Validar tipo
-                if (!FILE_CONFIG.allowedTypes.includes(file.type)) {
-                    continue;
-                }
-
-                // Determinar extensión
-                const extension = file.name.split(".").pop() || "pdf";
-                const fileName = `${registroId}/${archivo}_${registroId}.${extension}`;
-
-                // Subir a Supabase Storage
-                const buffer = await file.arrayBuffer();
-                const { error: uploadError } = await supabase.storage
-                    .from("documentos")
-                    .upload(fileName, buffer, {
-                        contentType: file.type,
-                        upsert: true,
-                    });
-
-                if (!uploadError) {
-                    rutasArchivos[`ruta_${archivo}`] = fileName;
-                } else {
-                    console.error(
-                        `  -> ERROR subiendo ${archivo}:`,
-                        uploadError,
-                    );
-                }
-            }
-        }
-
-        // Actualizar registro con rutas de archivos si hay alguno
-        if (Object.keys(rutasArchivos).length > 0) {
-            const { error: updateError } = await supabase
-                .from("registros")
-                .update(rutasArchivos)
-                .eq("id", registroId);
-
-            if (updateError) {
-                console.error("Error actualizando rutas:", updateError);
-            }
-        }
 
         // === INSERT O UPDATE AUTOMÁTICO EN ALUMNAS ===
         try {

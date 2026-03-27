@@ -6,6 +6,7 @@ import { Input, Select, GroupedSelect, RadioGroup, FileInput } from '@/component
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { StepNavigation } from '@/components/ui/StepNavigation';
 import { CURSOS_AGRUPADOS, CURSOS, ESTADOS_USA, FILE_CONFIG, ACADEMIA_INFO } from '@/lib/constants';
+import { uploadFile } from '@/lib/upload-file';
 import { CatalogosAgrupados } from '@/types';
 
 const TOTAL_STEPS = 6;
@@ -14,6 +15,7 @@ export default function FormularioInscripcion() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState('Enviando registro...');
   const [catalogos, setCatalogos] = useState<CatalogosAgrupados>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -245,96 +247,115 @@ export default function FormularioInscripcion() {
     if (!validateStep(currentStep)) return;
 
     setIsSubmitting(true);
+    setSubmitStatus('Enviando registro...');
 
     try {
-      const formData = new FormData();
+      // Construir payload JSON (sin archivos)
+      const payload: Record<string, string> = {
+        curso,
+        nombre,
+        apellido_paterno: apellidoPaterno,
+        apellido_materno: apellidoMaterno,
+        telefono_celular: telefonoCelular,
+        correo_electronico: correo,
+        estado_civil: estadoCivil === 'otro' ? estadoCivilOtro : estadoCivil,
+        grado_estudios: gradoEstudios === 'otro' ? gradoEstudiosOtro : gradoEstudios,
+        fecha_nacimiento: fechaNacimiento,
+        calle_domicilio: calleDomicilio,
+        numero_exterior: numeroExterior,
+        colonia_domicilio: coloniaDomicilio,
+        codigo_postal: codigoPostal,
+        familiar_nombre: familiarNombre,
+        familiar_parentesco: familiarParentesco === 'otro' ? familiarParentescoOtro : familiarParentesco,
+        familiar_telefono: familiarTelefono,
+        familiar_calle: familiarCalle,
+        familiar_numero: familiarNumero,
+        familiar_colonia: familiarColonia,
+        familiar_codigo_postal: familiarCp,
+        emergencia_nombre: emergenciaNombre,
+        emergencia_parentesco: emergenciaParentesco === 'otro' ? emergenciaParentescoOtro : emergenciaParentesco,
+        emergencia_telefono: emergenciaTelefono,
+      };
 
-      // Datos de texto
-      formData.append('curso', curso);
-      formData.append('nombre', nombre);
-      formData.append('apellido_paterno', apellidoPaterno);
-      formData.append('apellido_materno', apellidoMaterno);
-      formData.append('telefono_celular', telefonoCelular);
-      formData.append('correo_electronico', correo);
-      formData.append('estado_civil', estadoCivil === 'otro' ? estadoCivilOtro : estadoCivil);
-      formData.append('grado_estudios', gradoEstudios === 'otro' ? gradoEstudiosOtro : gradoEstudios);
-      formData.append('fecha_nacimiento', fechaNacimiento);
+      if (numeroInterior) payload.numero_interior = numeroInterior;
 
-      // País de nacimiento
       if (paisNacimiento === 'MEXICO') {
-        formData.append('pais_nacimiento', 'MEXICO');
-        formData.append('estado_nacimiento', estadoNacimientoMx);
-        formData.append('municipio_nacimiento', municipioNacimiento);
+        payload.pais_nacimiento = 'MEXICO';
+        payload.estado_nacimiento = estadoNacimientoMx;
+        payload.municipio_nacimiento = municipioNacimiento;
       } else if (paisNacimiento === 'ESTADOS UNIDOS') {
-        formData.append('pais_nacimiento', 'ESTADOS UNIDOS');
-        formData.append('estado_nacimiento', estadoNacimientoUsa);
+        payload.pais_nacimiento = 'ESTADOS UNIDOS';
+        payload.estado_nacimiento = estadoNacimientoUsa;
       } else if (paisNacimiento === 'OTRO') {
-        formData.append('pais_nacimiento', otroPaisNacimiento);
-        formData.append('lugar_nacimiento', lugarNacimiento);
+        payload.pais_nacimiento = otroPaisNacimiento;
+        payload.lugar_nacimiento = lugarNacimiento;
       }
-
-      // Domicilio
-      formData.append('calle_domicilio', calleDomicilio);
-      formData.append('numero_exterior', numeroExterior);
-      if (numeroInterior) formData.append('numero_interior', numeroInterior);
-      formData.append('colonia_domicilio', coloniaDomicilio);
-      formData.append('codigo_postal', codigoPostal);
 
       if (paisDomicilio === 'MEXICO') {
-        formData.append('pais_domicilio', 'MEXICO');
-        formData.append('estado_domicilio', estadoDomicilioMx);
-        formData.append('municipio_domicilio', municipioDomicilio);
+        payload.pais_domicilio = 'MEXICO';
+        payload.estado_domicilio = estadoDomicilioMx;
+        payload.municipio_domicilio = municipioDomicilio;
       } else if (paisDomicilio === 'ESTADOS UNIDOS') {
-        formData.append('pais_domicilio', 'ESTADOS UNIDOS');
-        formData.append('estado_domicilio', estadoDomicilioUsa);
+        payload.pais_domicilio = 'ESTADOS UNIDOS';
+        payload.estado_domicilio = estadoDomicilioUsa;
       } else if (paisDomicilio === 'OTRO') {
-        formData.append('pais_domicilio', otroPaisDomicilio);
-        formData.append('estado_domicilio', estadoOtroDomicilio);
+        payload.pais_domicilio = otroPaisDomicilio;
+        payload.estado_domicilio = estadoOtroDomicilio;
       }
-
-      // Familiar
-      formData.append('familiar_nombre', familiarNombre);
-      formData.append('familiar_parentesco', familiarParentesco === 'otro' ? familiarParentescoOtro : familiarParentesco);
-      formData.append('familiar_telefono', familiarTelefono);
-      formData.append('familiar_calle', familiarCalle);
-      formData.append('familiar_numero', familiarNumero);
-      formData.append('familiar_colonia', familiarColonia);
-      formData.append('familiar_codigo_postal', familiarCp);
 
       if (familiarPais === 'MEXICO') {
-        formData.append('familiar_pais', 'MEXICO');
-        formData.append('familiar_estado', familiarEstadoMx);
-        formData.append('familiar_municipio', familiarMunicipio);
+        payload.familiar_pais = 'MEXICO';
+        payload.familiar_estado = familiarEstadoMx;
+        payload.familiar_municipio = familiarMunicipio;
       } else if (familiarPais === 'ESTADOS UNIDOS') {
-        formData.append('familiar_pais', 'ESTADOS UNIDOS');
-        formData.append('familiar_estado', familiarEstadoUsa);
+        payload.familiar_pais = 'ESTADOS UNIDOS';
+        payload.familiar_estado = familiarEstadoUsa;
       } else if (familiarPais === 'OTRO') {
-        formData.append('familiar_pais', otroPaisFamiliar);
-        formData.append('familiar_estado', estadoOtroFamiliar);
+        payload.familiar_pais = otroPaisFamiliar;
+        payload.familiar_estado = estadoOtroFamiliar;
       }
 
-      // Emergencia
-      formData.append('emergencia_nombre', emergenciaNombre);
-      formData.append('emergencia_parentesco', emergenciaParentesco === 'otro' ? emergenciaParentescoOtro : emergenciaParentesco);
-      formData.append('emergencia_telefono', emergenciaTelefono);
-
-      // Archivos
-      if (ine) formData.append('ine', ine);
-      if (actaNacimiento) formData.append('acta_nacimiento', actaNacimiento);
-      if (comprobanteDomicilio) formData.append('comprobante_domicilio', comprobanteDomicilio);
-
+      // Paso 1: enviar datos de texto
       const response = await fetch('/api/registro', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
-
-      if (result.success) {
-        router.push(`/inscripcion/gracias?id=${result.registroId}`);
-      } else {
+      if (!result.success) {
         setErrors({ submit: result.error || 'Error al enviar el registro' });
+        return;
       }
+
+      const registroId: number = result.registroId;
+
+      // Paso 2: subir archivos directamente a Storage
+      const archivos = [
+        { file: ine, tipo: 'ine' },
+        { file: actaNacimiento, tipo: 'acta_nacimiento' },
+        { file: comprobanteDomicilio, tipo: 'comprobante_domicilio' },
+      ].filter((a) => a.file !== null) as { file: File; tipo: string }[];
+
+      if (archivos.length > 0) {
+        setSubmitStatus('Subiendo documentos...');
+        const rutas: Record<string, string> = {};
+
+        for (const { file, tipo } of archivos) {
+          const ruta = await uploadFile(file, registroId, tipo);
+          if (ruta) rutas[`ruta_${tipo}`] = ruta;
+        }
+
+        if (Object.keys(rutas).length > 0) {
+          await fetch('/api/registro/archivos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ registroId, rutas }),
+          });
+        }
+      }
+
+      router.push(`/inscripcion/gracias?id=${registroId}`);
     } catch (error) {
       console.error('Error:', error);
       setErrors({ submit: 'Error de conexión. Por favor intenta de nuevo.' });
@@ -759,7 +780,7 @@ export default function FormularioInscripcion() {
         <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white p-8 sm:p-12 rounded-3xl text-center shadow-2xl mx-5">
             <div className="w-14 h-14 border-4 border-primary-light border-t-primary rounded-full animate-spin mx-auto" />
-            <p className="mt-5 text-gray-800 font-medium text-lg">Enviando registro...</p>
+            <p className="mt-5 text-gray-800 font-medium text-lg">{submitStatus}</p>
             <p className="mt-2 text-gray-500 text-sm">Por favor espera, esto puede tardar unos segundos.</p>
           </div>
         </div>
