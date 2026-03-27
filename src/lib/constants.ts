@@ -28,20 +28,20 @@ export const CURSOS: CursoOption[] = [
     {
         value: "MICROPIGMENTACION EN OJOS",
         label: "Curso de Micropigmentación en Ojos",
-        grupo: "Cursos y Talleres",
-        requiereDocumentos: false,
+        grupo: "Cursos (acreditados por el IDEFT)",
+        requiereDocumentos: true,
     },
     {
         value: "MICROPIGMENTACION EN LABIOS",
         label: "Curso de Micropigmentación en Labios",
-        grupo: "Cursos y Talleres",
-        requiereDocumentos: false,
+        grupo: "Cursos (acreditados por el IDEFT)",
+        requiereDocumentos: true,
     },
     {
         value: "MASAJES RELAJANTES",
         label: "Curso de Masajes Relajantes",
-        grupo: "Cursos y Talleres",
-        requiereDocumentos: false,
+        grupo: "Cursos (acreditados por el IDEFT)",
+        requiereDocumentos: true,
     },
     {
         value: "TRATAMIENTOS AVANZADOS",
