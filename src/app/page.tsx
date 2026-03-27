@@ -19,23 +19,12 @@ export default function HomePage() {
           Bienvenido(a) a {ACADEMIA_INFO.nombre}
         </h1>
 
-        <p className="text-gray-500 mb-8">
-          Selecciona una opción para continuar
-        </p>
-
         <div className="space-y-4">
           <Link
             href="/inscripcion"
             className="block w-full bg-gradient-to-r from-primary to-primary-dark text-white py-4 px-6 rounded-xl font-semibold hover:-translate-y-0.5 hover:shadow-lg transition-all"
           >
             📝 Formulario de Inscripción
-          </Link>
-
-          <Link
-            href="/buscar"
-            className="block w-full bg-gray-100 text-gray-600 py-4 px-6 rounded-xl font-semibold border-2 border-gray-200 hover:bg-gray-200 transition-all"
-          >
-            🔍 Buscar mi Comprobante
           </Link>
         </div>
 
