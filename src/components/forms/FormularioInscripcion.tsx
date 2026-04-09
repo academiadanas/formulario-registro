@@ -6,10 +6,38 @@ import { Input, Select, GroupedSelect, RadioGroup, FileInput } from '@/component
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { StepNavigation } from '@/components/ui/StepNavigation';
 import { CURSOS_AGRUPADOS, CURSOS, ESTADOS_USA, FILE_CONFIG, ACADEMIA_INFO } from '@/lib/constants';
-import { uploadFile } from '@/lib/upload-file';
+import { uploadFile, UploadError } from '@/lib/upload-file';
 import { CatalogosAgrupados } from '@/types';
 
 const TOTAL_STEPS = 6;
+
+const NOMBRES_DOCUMENTOS: Record<string, string> = {
+  ine: 'INE o CURP',
+  acta_nacimiento: 'Acta de Nacimiento',
+  comprobante_domicilio: 'Comprobante de Domicilio',
+};
+
+function construirMensajeErrorSubida(err: unknown): string {
+  if (!(err instanceof UploadError)) {
+    return 'Tus datos se guardaron correctamente, pero hubo un problema inesperado al subir tus documentos. Por favor regresa al paso 2 e intenta enviar el formulario de nuevo. Si el problema persiste, contáctanos por WhatsApp al 317 132 3237 o por correo a academia@academiadanas.com.';
+  }
+
+  const nombre = NOMBRES_DOCUMENTOS[err.tipo] || err.tipo;
+
+  switch (err.reason) {
+    case 'size':
+      return `Hubo un problema con tu archivo de ${nombre}: excede el tamaño máximo permitido de 5 MB. Por favor regresa al paso 2, sube un archivo más pequeño e intenta de nuevo.`;
+    case 'format':
+      return `Hubo un problema con tu archivo de ${nombre}: el formato no es válido. Solo se aceptan PDF, JPG y PNG. Por favor regresa al paso 2, sube un archivo con formato válido e intenta de nuevo.`;
+    case 'expired':
+      return 'Tu sesión de registro ha expirado. Por favor recarga la página y llena el formulario de nuevo.';
+    case 'not_found':
+      return 'No pudimos encontrar tu registro. Por favor recarga la página e intenta de nuevo. Si el problema persiste, contáctanos por WhatsApp al 317 132 3237 o por correo a academia@academiadanas.com.';
+    case 'network':
+    case 'storage':
+      return `Tus datos se guardaron correctamente, pero hubo un problema al subir tu archivo de ${nombre}. Por favor regresa al paso 2, vuelve a seleccionar tus documentos e intenta enviar el formulario de nuevo. Si el problema persiste, contáctanos por WhatsApp al 317 132 3237 o por correo a academia@academiadanas.com.`;
+  }
+}
 
 export default function FormularioInscripcion() {
   const router = useRouter();
@@ -330,7 +358,7 @@ export default function FormularioInscripcion() {
 
       const registroId: number = result.registroId;
 
-      // Paso 2: subir archivos directamente a Storage
+      // Paso 2: subir archivos con signed URLs
       const archivos = [
         { file: ine, tipo: 'ine' },
         { file: actaNacimiento, tipo: 'acta_nacimiento' },
@@ -341,9 +369,16 @@ export default function FormularioInscripcion() {
         setSubmitStatus('Subiendo documentos...');
         const rutas: Record<string, string> = {};
 
-        for (const { file, tipo } of archivos) {
-          const ruta = await uploadFile(file, registroId, tipo);
-          if (ruta) rutas[`ruta_${tipo}`] = ruta;
+        try {
+          for (const { file, tipo } of archivos) {
+            const ruta = await uploadFile(file, registroId, tipo);
+            rutas[`ruta_${tipo}`] = ruta;
+          }
+        } catch (err) {
+          const mensaje = construirMensajeErrorSubida(err);
+          setErrors({ submit: mensaje });
+          setIsSubmitting(false);
+          return;
         }
 
         if (Object.keys(rutas).length > 0) {
