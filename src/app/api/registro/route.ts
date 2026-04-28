@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-public";
 
+const UUID_REGEX =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Función para convertir MAYÚSCULAS a Formato Título
 function toTitleCase(str: string): string {
     if (!str) return '';
@@ -11,10 +14,72 @@ function toTitleCase(str: string): string {
         .join(' ');
 }
 
+function rutaValida(ruta: unknown, uploadId: string): ruta is string {
+    return (
+        typeof ruta === "string" &&
+        ruta.length > 0 &&
+        ruta.startsWith(`temp/${uploadId}/`) &&
+        !ruta.includes("..")
+    );
+}
+
 export async function POST(request: NextRequest) {
     try {
         const supabase = createPublicSupabaseClient();
         const body = await request.json();
+
+        // === Validaciones server-side de uploadId y rutas ===
+        const { uploadId, rutas } = body;
+
+        if (typeof uploadId !== "string" || !UUID_REGEX.test(uploadId)) {
+            return NextResponse.json(
+                { error: "Identificador de subida inválido o ausente" },
+                { status: 400 },
+            );
+        }
+
+        if (
+            rutas === null ||
+            rutas === undefined ||
+            typeof rutas !== "object" ||
+            Array.isArray(rutas)
+        ) {
+            return NextResponse.json(
+                { error: "Faltan las rutas de los documentos" },
+                { status: 400 },
+            );
+        }
+
+        const rutaIne = (rutas as Record<string, unknown>).ruta_ine;
+        const rutaActa = (rutas as Record<string, unknown>).ruta_acta_nacimiento;
+        const rutaComprobante = (rutas as Record<string, unknown>)
+            .ruta_comprobante_domicilio;
+
+        if (!rutaValida(rutaIne, uploadId)) {
+            return NextResponse.json(
+                { error: "La ruta de la INE es obligatoria o no es válida" },
+                { status: 400 },
+            );
+        }
+
+        if (!rutaValida(rutaComprobante, uploadId)) {
+            return NextResponse.json(
+                {
+                    error:
+                        "La ruta del comprobante de domicilio es obligatoria o no es válida",
+                },
+                { status: 400 },
+            );
+        }
+
+        if (rutaActa !== undefined && rutaActa !== null) {
+            if (!rutaValida(rutaActa, uploadId)) {
+                return NextResponse.json(
+                    { error: "La ruta del acta de nacimiento no es válida" },
+                    { status: 400 },
+                );
+            }
+        }
 
         // Extraer datos del formulario
         const registroData: Record<string, string> = {};
@@ -91,10 +156,19 @@ export async function POST(request: NextRequest) {
                 registroData.correo_electronico.toLowerCase();
         }
 
+        // Construir payload del INSERT con rutas y upload_session_id
+        const insertPayload: Record<string, string | null> = {
+            ...registroData,
+            ruta_ine: rutaIne,
+            ruta_acta_nacimiento: rutaValida(rutaActa, uploadId) ? rutaActa : null,
+            ruta_comprobante_domicilio: rutaComprobante,
+            upload_session_id: uploadId,
+        };
+
         // Insertar registro
         const { data: registro, error: insertError } = await supabase
             .from("registros")
-            .insert(registroData)
+            .insert(insertPayload)
             .select("id")
             .single();
 

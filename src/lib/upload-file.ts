@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase-client';
 import { FILE_CONFIG } from '@/lib/constants';
 
-export type UploadErrorReason = 'size' | 'format' | 'expired' | 'not_found' | 'network' | 'storage';
+export type UploadErrorReason = 'size' | 'format' | 'network' | 'storage';
 
 export class UploadError extends Error {
   constructor(
@@ -14,12 +14,15 @@ export class UploadError extends Error {
   }
 }
 
+// Nota: si la usuaria reemplaza un archivo durante la misma sesión por uno con
+// distinta extensión (p. ej. ine.jpg → ine.pdf), el archivo previo queda
+// huérfano en `temp/{uploadId}/` porque el path cambia con la extensión. La
+// fila en BD apunta siempre al último subido; los huérfanos se limpian aparte.
 export async function uploadFile(
   file: File,
-  registroId: number,
+  uploadId: string,
   tipo: string
 ): Promise<string> {
-  // Validaciones locales
   if (file.size > FILE_CONFIG.maxSize) {
     throw new UploadError(tipo, 'size', 'Archivo excede tamaño máximo');
   }
@@ -27,12 +30,11 @@ export async function uploadFile(
     throw new UploadError(tipo, 'format', 'Formato de archivo no permitido');
   }
 
-  // Pedir signed upload URL al servidor
   const response = await fetch('/api/registro/upload-url', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      registroId,
+      uploadId,
       tipo,
       contentType: file.type,
       size: file.size,
@@ -40,18 +42,11 @@ export async function uploadFile(
   });
 
   if (!response.ok) {
-    if (response.status === 403) {
-      throw new UploadError(tipo, 'expired', 'Registro expirado');
-    }
-    if (response.status === 404) {
-      throw new UploadError(tipo, 'not_found', 'Registro no encontrado');
-    }
     throw new UploadError(tipo, 'network', 'Error al preparar la subida');
   }
 
   const { token, path } = await response.json();
 
-  // Subir el archivo usando la signed URL
   const supabase = createClient();
   const { error } = await supabase.storage
     .from('documentos')

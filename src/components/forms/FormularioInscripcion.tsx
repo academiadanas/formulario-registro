@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, useRef, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input, Select, GroupedSelect, RadioGroup, FileInput } from '@/components/ui/FormFields';
 import { StepIndicator } from '@/components/ui/StepIndicator';
@@ -19,7 +19,7 @@ const NOMBRES_DOCUMENTOS: Record<string, string> = {
 
 function construirMensajeErrorSubida(err: unknown): string {
   if (!(err instanceof UploadError)) {
-    return 'Tus datos se guardaron correctamente, pero hubo un problema inesperado al subir tus documentos. Por favor regresa al paso 2 e intenta enviar el formulario de nuevo. Si el problema persiste, contáctanos por WhatsApp al 317 132 3237 o por correo a academia@academiadanas.com.';
+    return 'Hubo un problema inesperado al subir tus documentos. Por favor regresa al paso 2, vuelve a seleccionar tus documentos e intenta enviar el formulario de nuevo. Si el problema persiste, contáctanos por WhatsApp al 317 132 3237 o por correo a academia@academiadanas.com.';
   }
 
   const nombre = NOMBRES_DOCUMENTOS[err.tipo] || err.tipo;
@@ -29,13 +29,9 @@ function construirMensajeErrorSubida(err: unknown): string {
       return `Hubo un problema con tu archivo de ${nombre}: excede el tamaño máximo permitido de 5 MB. Por favor regresa al paso 2, sube un archivo más pequeño e intenta de nuevo.`;
     case 'format':
       return `Hubo un problema con tu archivo de ${nombre}: el formato no es válido. Solo se aceptan PDF, JPG y PNG. Por favor regresa al paso 2, sube un archivo con formato válido e intenta de nuevo.`;
-    case 'expired':
-      return 'Tu sesión de registro ha expirado. Por favor recarga la página y llena el formulario de nuevo.';
-    case 'not_found':
-      return 'No pudimos encontrar tu registro. Por favor recarga la página e intenta de nuevo. Si el problema persiste, contáctanos por WhatsApp al 317 132 3237 o por correo a academia@academiadanas.com.';
     case 'network':
     case 'storage':
-      return `Tus datos se guardaron correctamente, pero hubo un problema al subir tu archivo de ${nombre}. Por favor regresa al paso 2, vuelve a seleccionar tus documentos e intenta enviar el formulario de nuevo. Si el problema persiste, contáctanos por WhatsApp al 317 132 3237 o por correo a academia@academiadanas.com.`;
+      return `Hubo un problema al subir tu archivo de ${nombre}. Por favor regresa al paso 2, vuelve a seleccionar tus documentos e intenta enviar el formulario de nuevo. Si el problema persiste, contáctanos por WhatsApp al 317 132 3237 o por correo a academia@academiadanas.com.`;
   }
 }
 
@@ -46,6 +42,11 @@ export default function FormularioInscripcion() {
   const [submitStatus, setSubmitStatus] = useState('Enviando registro...');
   const [catalogos, setCatalogos] = useState<CatalogosAgrupados>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // UUID estable durante toda la sesión del componente. Identifica los archivos
+  // subidos a temp/{uploadId}/... antes del INSERT y se persiste en BD como
+  // upload_session_id para trazabilidad.
+  const uploadIdRef = useRef<string>(crypto.randomUUID());
 
   // ---- Estado del formulario ----
   // Paso 1: Aviso de privacidad
@@ -343,11 +344,35 @@ export default function FormularioInscripcion() {
         payload.familiar_estado = estadoOtroFamiliar;
       }
 
-      // Paso 1: enviar datos de texto
+      // Paso 1: subir archivos a temp/{uploadId}/... ANTES de insertar en BD
+      const rutas: { ruta_ine?: string; ruta_acta_nacimiento?: string; ruta_comprobante_domicilio?: string } = {};
+
+      const tieneArchivosQueSubir = ine !== null || actaNacimiento !== null || comprobanteDomicilio !== null;
+
+      if (tieneArchivosQueSubir) {
+        setSubmitStatus('Subiendo documentos...');
+        try {
+          if (ine) rutas.ruta_ine = await uploadFile(ine, uploadIdRef.current, 'ine');
+          if (actaNacimiento) rutas.ruta_acta_nacimiento = await uploadFile(actaNacimiento, uploadIdRef.current, 'acta_nacimiento');
+          if (comprobanteDomicilio) rutas.ruta_comprobante_domicilio = await uploadFile(comprobanteDomicilio, uploadIdRef.current, 'comprobante_domicilio');
+        } catch (err) {
+          const mensaje = construirMensajeErrorSubida(err);
+          setErrors({ submit: mensaje });
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // Paso 2: INSERT atómico con datos + rutas + uploadId
+      setSubmitStatus('Guardando registro...');
       const response = await fetch('/api/registro', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...payload,
+          uploadId: uploadIdRef.current,
+          rutas,
+        }),
       });
 
       const result = await response.json();
@@ -357,38 +382,6 @@ export default function FormularioInscripcion() {
       }
 
       const registroId: number = result.registroId;
-
-      // Paso 2: subir archivos con signed URLs
-      const archivos = [
-        { file: ine, tipo: 'ine' },
-        { file: actaNacimiento, tipo: 'acta_nacimiento' },
-        { file: comprobanteDomicilio, tipo: 'comprobante_domicilio' },
-      ].filter((a) => a.file !== null) as { file: File; tipo: string }[];
-
-      if (archivos.length > 0) {
-        setSubmitStatus('Subiendo documentos...');
-        const rutas: Record<string, string> = {};
-
-        try {
-          for (const { file, tipo } of archivos) {
-            const ruta = await uploadFile(file, registroId, tipo);
-            rutas[`ruta_${tipo}`] = ruta;
-          }
-        } catch (err) {
-          const mensaje = construirMensajeErrorSubida(err);
-          setErrors({ submit: mensaje });
-          setIsSubmitting(false);
-          return;
-        }
-
-        if (Object.keys(rutas).length > 0) {
-          await fetch('/api/registro/archivos', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ registroId, rutas }),
-          });
-        }
-      }
 
       router.push(`/inscripcion/gracias?id=${registroId}`);
     } catch (error) {

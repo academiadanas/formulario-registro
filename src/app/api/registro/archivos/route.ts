@@ -1,3 +1,7 @@
+// DEPRECATED: Este endpoint ya no se usa después del fix arquitectónico
+// del flujo de inscripción (Abril 2026). Las rutas ahora se persisten en
+// el INSERT inicial de /api/registro. Mantener temporalmente por si hay
+// clientes con caché vieja. Borrar en una limpieza posterior.
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-public";
 
