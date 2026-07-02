@@ -5,9 +5,6 @@ import { useRouter } from 'next/navigation';
 import { Input, Select, GroupedSelect, RadioGroup, FileInput } from '@/components/ui/FormFields';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { StepNavigation } from '@/components/ui/StepNavigation';
-// CURSOS y CURSOS_AGRUPADOS ya no se consumen: los cursos se cargan desde
-// /api/programas (ver estado `cursos`). Se dejan sin usar en constants.ts y se
-// eliminarán en un paso de limpieza posterior.
 import { ESTADOS_USA, FILE_CONFIG, ACADEMIA_INFO } from '@/lib/constants';
 import { uploadFile, UploadError } from '@/lib/upload-file';
 import { CatalogosAgrupados, CursoOption } from '@/types';
@@ -46,7 +43,7 @@ export default function FormularioInscripcion() {
   const [catalogos, setCatalogos] = useState<CatalogosAgrupados>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Cursos cargados desde /api/programas (reemplaza la constante CURSOS).
+  // Cursos cargados desde /api/programas.
   const [cursos, setCursos] = useState<CursoOption[]>([]);
   const [cursosLoading, setCursosLoading] = useState(true);
   const [cursosError, setCursosError] = useState(false);

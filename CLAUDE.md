@@ -32,12 +32,7 @@ Si una tarea requiere modificar el panel administrativo, ESTÁ EN OTRO PROYECTO.
   - `src/app/api/pdf/[id]/route.ts` — generación de PDF y envío de correo
   - `src/app/api/registro/archivos/route.ts` — **DEPRECATED** (ver sección "Pendientes")
 
-### Rutas API de admin (requieren autenticación)
-
-- **Cliente:** `createServerSupabaseClient()` de `src/lib/supabase-server.ts`
-- **Key:** `NEXT_PUBLIC_SUPABASE_ANON_KEY` + cookies de sesión (`@supabase/ssr`)
-- **Rutas que lo usan:**
-  - `src/app/api/admin/users/route.ts`
+No existen rutas API de admin en este proyecto: el panel administrativo y sus endpoints (`/admin/...`, `/api/admin/...`, `/api/programas/admin`) se eliminaron en Julio 2026 porque el panel vive en el proyecto escolar.
 
 ---
 
