@@ -55,23 +55,53 @@ export async function POST(request: NextRequest) {
         const rutaComprobante = (rutas as Record<string, unknown>)
             .ruta_comprobante_domicilio;
 
-        if (!rutaValida(rutaIne, uploadId)) {
-            return NextResponse.json(
-                { error: "La ruta de la INE es obligatoria o no es válida" },
-                { status: 400 },
-            );
-        }
+        // === Whitelist del curso + exigencia condicional de documentos ===
+        // Se normaliza igual que el bloque `campos` de abajo (.trim().toUpperCase())
+        // para que coincida con la columna `codigo` de programas (mayúsculas).
+        const cursoNormalizado =
+            typeof body.curso === "string"
+                ? body.curso.trim().toUpperCase()
+                : "";
 
-        if (!rutaValida(rutaComprobante, uploadId)) {
+        const { data: programa, error: programaError } = await supabase
+            .from("programas")
+            .select("codigo, requiere_documentos")
+            .eq("codigo", cursoNormalizado)
+            .eq("activo", true)
+            .maybeSingle();
+
+        // Whitelist: el curso debe existir y estar activo.
+        if (programaError || programa === null) {
             return NextResponse.json(
                 {
                     error:
-                        "La ruta del comprobante de domicilio es obligatoria o no es válida",
+                        "El curso seleccionado no es válido o no está disponible",
                 },
                 { status: 400 },
             );
         }
 
+        // Solo se exigen INE y comprobante si el curso lo requiere.
+        if (programa.requiere_documentos === true) {
+            if (!rutaValida(rutaIne, uploadId)) {
+                return NextResponse.json(
+                    { error: "La ruta de la INE es obligatoria o no es válida" },
+                    { status: 400 },
+                );
+            }
+
+            if (!rutaValida(rutaComprobante, uploadId)) {
+                return NextResponse.json(
+                    {
+                        error:
+                            "La ruta del comprobante de domicilio es obligatoria o no es válida",
+                    },
+                    { status: 400 },
+                );
+            }
+        }
+
+        // El acta de nacimiento siempre es opcional: solo se valida si viene.
         if (rutaActa !== undefined && rutaActa !== null) {
             if (!rutaValida(rutaActa, uploadId)) {
                 return NextResponse.json(
@@ -157,11 +187,16 @@ export async function POST(request: NextRequest) {
         }
 
         // Construir payload del INSERT con rutas y upload_session_id
+        // Rutas null-safe: para cursos sin documentos llegan vacías y se insertan
+        // como null (igual que el acta). Para cursos que sí requieren, ya pasaron
+        // rutaValida arriba, así que el valor es el path válido.
         const insertPayload: Record<string, string | null> = {
             ...registroData,
-            ruta_ine: rutaIne,
+            ruta_ine: rutaValida(rutaIne, uploadId) ? rutaIne : null,
             ruta_acta_nacimiento: rutaValida(rutaActa, uploadId) ? rutaActa : null,
-            ruta_comprobante_domicilio: rutaComprobante,
+            ruta_comprobante_domicilio: rutaValida(rutaComprobante, uploadId)
+                ? rutaComprobante
+                : null,
             upload_session_id: uploadId,
         };
 

@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation';
 import { Input, Select, GroupedSelect, RadioGroup, FileInput } from '@/components/ui/FormFields';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { StepNavigation } from '@/components/ui/StepNavigation';
-import { CURSOS_AGRUPADOS, CURSOS, ESTADOS_USA, FILE_CONFIG, ACADEMIA_INFO } from '@/lib/constants';
+// CURSOS y CURSOS_AGRUPADOS ya no se consumen: los cursos se cargan desde
+// /api/programas (ver estado `cursos`). Se dejan sin usar en constants.ts y se
+// eliminarán en un paso de limpieza posterior.
+import { ESTADOS_USA, FILE_CONFIG, ACADEMIA_INFO } from '@/lib/constants';
 import { uploadFile, UploadError } from '@/lib/upload-file';
-import { CatalogosAgrupados } from '@/types';
+import { CatalogosAgrupados, CursoOption } from '@/types';
 
 const TOTAL_STEPS = 6;
 
@@ -42,6 +45,11 @@ export default function FormularioInscripcion() {
   const [submitStatus, setSubmitStatus] = useState('Enviando registro...');
   const [catalogos, setCatalogos] = useState<CatalogosAgrupados>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Cursos cargados desde /api/programas (reemplaza la constante CURSOS).
+  const [cursos, setCursos] = useState<CursoOption[]>([]);
+  const [cursosLoading, setCursosLoading] = useState(true);
+  const [cursosError, setCursosError] = useState(false);
 
   // UUID estable durante toda la sesión del componente. Identifica los archivos
   // subidos a temp/{uploadId}/... antes del INSERT y se persiste en BD como
@@ -119,8 +127,29 @@ export default function FormularioInscripcion() {
       .catch((err) => console.error('Error cargando catálogos:', err));
   }, []);
 
+  // ---- Cargar cursos desde /api/programas ----
+  useEffect(() => {
+    async function cargarCursos() {
+      try {
+        const res = await fetch('/api/programas');
+        if (!res.ok) {
+          throw new Error(`Respuesta no-ok: ${res.status}`);
+        }
+        const data: CursoOption[] = await res.json();
+        setCursos(data);
+        setCursosError(false);
+      } catch (err) {
+        console.error('Error cargando programas:', err);
+        setCursosError(true);
+      } finally {
+        setCursosLoading(false);
+      }
+    }
+    cargarCursos();
+  }, []);
+
   // ---- Helpers ----
-  const requiereDocumentos = CURSOS.find((c) => c.value === curso)?.requiereDocumentos ?? false;
+  const requiereDocumentos = cursos.find((c) => c.value === curso)?.requiereDocumentos ?? false;
 
   const estadosMexico = Object.keys(catalogos).sort().map((e) => ({ value: e, label: e }));
 
@@ -133,12 +162,15 @@ export default function FormularioInscripcion() {
     { value: 'OTRO', label: 'Otro país' },
   ];
 
-  // Convertir cursos agrupados para el GroupedSelect
-  const cursosParaSelect = Object.fromEntries(
-    Object.entries(CURSOS_AGRUPADOS).map(([grupo, cursos]) => [
-      grupo,
-      cursos.map((c) => ({ value: c.value, label: c.label })),
-    ])
+  // Agrupar los cursos (array plano de /api/programas) por `grupo` para el
+  // GroupedSelect. Forma de salida: Record<string, { value, label }[]>.
+  const cursosParaSelect = cursos.reduce(
+    (acc, c) => {
+      if (!acc[c.grupo]) acc[c.grupo] = [];
+      acc[c.grupo].push({ value: c.value, label: c.label });
+      return acc;
+    },
+    {} as Record<string, { value: string; label: string }[]>
   );
 
   // ---- Validación por paso ----
@@ -166,6 +198,12 @@ export default function FormularioInscripcion() {
         break;
 
       case 2:
+        // Si los programas no cargaron, no se puede seleccionar curso: bloquear avance.
+        if (cursosError) {
+          newErrors.curso = 'No se pudieron cargar los programas. Por favor recarga la página.';
+          setErrors(newErrors);
+          return false;
+        }
         if (!curso) newErrors.curso = 'Selecciona un curso';
         if (requiereDocumentos) {
           if (!ine) newErrors.ine = 'La INE/CURP es obligatoria';
@@ -483,15 +521,29 @@ export default function FormularioInscripcion() {
             Curso y Documentos
           </h2>
 
-          <GroupedSelect
-            label="Curso de Interés"
-            groups={cursosParaSelect}
-            value={curso}
-            onChange={(e) => setCurso(e.target.value)}
-            placeholder="-- Selecciona un curso --"
-            required
-            error={errors.curso}
-          />
+          {cursosLoading ? (
+            <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl mb-6 flex items-center gap-3">
+              <span className="inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <p className="text-gray-600 text-sm">Cargando programas...</p>
+            </div>
+          ) : cursosError ? (
+            <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-r-xl mb-6">
+              <p className="text-red-800 text-sm">
+                ⚠️ <strong>No se pudieron cargar los programas.</strong><br />
+                <span className="text-sm">Por favor recarga la página e intenta de nuevo.</span>
+              </p>
+            </div>
+          ) : (
+            <GroupedSelect
+              label="Curso de Interés"
+              groups={cursosParaSelect}
+              value={curso}
+              onChange={(e) => setCurso(e.target.value)}
+              placeholder="-- Selecciona un curso --"
+              required
+              error={errors.curso}
+            />
+          )}
 
           {curso && requiereDocumentos && (
             <div className="animate-[fadeIn_0.3s_ease]">
