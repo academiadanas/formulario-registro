@@ -35,6 +35,6 @@ export const ACADEMIA_INFO = {
     telefono: "317 132 3237",
     correo: "academia@academiadanas.com",
     website: "https://www.academiadanas.com",
-    logo: "https://uafyxhczxbsyzfyjokwf.supabase.co/storage/v1/object/public/assets/logo_academiadanas_color.png",
+    logo: "https://vynfcgvpljnvoiqrqyti.supabase.co/storage/v1/object/public/assets/logo_academiadanas_color.png",
     reglamento: "https://tinyurl.com/reglamentoad",
 };
