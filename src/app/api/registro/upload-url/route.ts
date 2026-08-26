@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-public";
 import { FILE_CONFIG } from "@/lib/constants";
 
-const TIPOS_PERMITIDOS = ["ine", "acta_nacimiento", "comprobante_domicilio"];
+const TIPOS_PERMITIDOS = [
+    "ine_frente",
+    "ine_reverso",
+    "acta_nacimiento",
+    "comprobante_domicilio",
+];
 
 const CONTENT_TYPE_TO_EXT: Record<string, string> = {
     "application/pdf": "pdf",

@@ -6,6 +6,8 @@ interface StepNavigationProps {
   onPrev: () => void;
   onNext: () => void;
   isSubmitting?: boolean;
+  nextLabel?: string;
+  submitLabel?: string;
 }
 
 export function StepNavigation({
@@ -14,34 +16,33 @@ export function StepNavigation({
   onPrev,
   onNext,
   isSubmitting = false,
+  nextLabel = 'Continuar',
+  submitLabel = 'Enviar registro',
 }: StepNavigationProps) {
   const isLastStep = currentStep === totalSteps;
 
   return (
-    <div className="flex justify-between items-center mt-9 pt-6 border-t-2 border-gray-100 gap-4">
+    <div className="flex justify-between items-center mt-9 pt-6 border-t-2 border-border-warm gap-4">
       {currentStep > 1 ? (
         <button
           type="button"
           onClick={onPrev}
           disabled={isSubmitting}
-          className="flex items-center gap-2 px-8 py-4 bg-gray-100 text-gray-600 rounded-xl
-            font-semibold border-2 border-gray-200 hover:bg-gray-200 hover:text-gray-700
-            transition-all duration-300 disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-3.5 text-text-secondary font-semibold
+            hover:text-text-primary transition-colors duration-300 disabled:opacity-50"
         >
-          ← Anterior
+          Atrás
         </button>
-      ) : (
-        <div />
-      )}
+      ) : null}
 
       {isLastStep ? (
         <button
           type="submit"
           disabled={isSubmitting}
-          className="flex items-center justify-center gap-2 min-w-[200px] px-8 py-4
-            bg-gradient-to-r from-primary to-primary-dark text-white rounded-xl
-            font-semibold shadow-[0_4px_15px_rgba(231,74,130,0.35)]
-            hover:-translate-y-0.5 hover:shadow-[0_8px_25px_rgba(231,74,130,0.45)]
+          className="flex flex-1 items-center justify-center gap-2 px-8 py-4
+            bg-primary text-white rounded-xl
+            font-semibold shadow-[0_4px_15px_var(--color-primary-35)]
+            hover:-translate-y-0.5 hover:shadow-[0_8px_25px_var(--color-primary-45)]
             active:translate-y-0 transition-all duration-300
             disabled:opacity-50 disabled:hover:translate-y-0"
         >
@@ -51,20 +52,20 @@ export function StepNavigation({
               Enviando...
             </>
           ) : (
-            <>📤 Enviar Registro</>
+            <>{submitLabel}</>
           )}
         </button>
       ) : (
         <button
           type="button"
           onClick={onNext}
-          className="flex items-center gap-2 px-8 py-4
-            bg-gradient-to-r from-primary to-primary-dark text-white rounded-xl
-            font-semibold shadow-[0_4px_15px_rgba(231,74,130,0.35)]
-            hover:-translate-y-0.5 hover:shadow-[0_8px_25px_rgba(231,74,130,0.45)]
+          className="flex flex-1 items-center justify-center gap-2 px-8 py-4
+            bg-primary text-white rounded-xl
+            font-semibold shadow-[0_4px_15px_var(--color-primary-35)]
+            hover:-translate-y-0.5 hover:shadow-[0_8px_25px_var(--color-primary-45)]
             active:translate-y-0 transition-all duration-300"
         >
-          Siguiente →
+          {nextLabel}
         </button>
       )}
     </div>

@@ -10,6 +10,7 @@ export interface Registro {
   nombre: string;
   apellido_paterno: string;
   apellido_materno: string;
+  sexo: string | null;
   telefono_celular: string;
   correo_electronico: string;
   estado_civil: string;
@@ -53,7 +54,8 @@ export interface Registro {
   curso: string;
 
   // Documentos
-  ruta_ine: string | null;
+  ruta_ine_frente: string | null;
+  ruta_ine_reverso: string | null;
   ruta_acta_nacimiento: string | null;
   ruta_comprobante_domicilio: string | null;
 

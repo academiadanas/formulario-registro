@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Read(//c/Users/INTER/Documents/**)",
+      "Bash(git remote *)",
+      "Bash(ls -la .env*)",
+      "PowerShell(npm run build)",
+      "Bash(cd \"c:/Users/INTER/Documents/formulario-registro-base\" && rm -rf src/app/admin src/components/admin src/components/ui/ConfirmModal.tsx src/hooks/useUserRole.ts src/app/api/admin src/middleware.ts src/lib/supabase-middleware.ts src/lib/supabase-server.ts src/app/api/programas/admin && ls src/app/api/programas && ls src/app src/components src/lib src/hooks 2>&1)"
     ]
   }
 }
