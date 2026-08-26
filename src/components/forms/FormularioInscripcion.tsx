@@ -70,12 +70,16 @@ interface DocumentCaptureFieldProps {
   // true (default): cámara en vivo (o capture="environment" como respaldo).
   // false: selector nativo (foto, galería o archivo/PDF).
   soloCamara?: boolean;
+  // Orientación del documento en el estado framing: 'horizontal' (default,
+  // INE apaisada) o 'vertical' (acta: video más alto que ancho y marco guía
+  // en franja vertical angosta).
+  formatoDocumento?: 'horizontal' | 'vertical';
   file: File | null;
   onChange: (file: File | null) => void;
   error?: string;
 }
 
-function DocumentCaptureField({ label, name, caption, ejemplo, required, soloCamara = true, file, onChange, error }: DocumentCaptureFieldProps) {
+function DocumentCaptureField({ label, name, caption, ejemplo, required, soloCamara = true, formatoDocumento = 'horizontal', file, onChange, error }: DocumentCaptureFieldProps) {
   const esImagen = file !== null && file.type.startsWith('image/');
   const previewUrl = useMemo(
     () => (file !== null && esImagen ? URL.createObjectURL(file) : null),
@@ -189,11 +193,18 @@ function DocumentCaptureField({ label, name, caption, ejemplo, required, soloCam
 
       {modo === 'framing' ? (
         <div className="relative w-full overflow-hidden rounded-xl border-2 border-border-warm bg-black">
-          <video ref={videoRef} autoPlay muted playsInline className="w-full aspect-[4/3] object-cover" />
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            className={`w-full object-cover ${formatoDocumento === 'vertical' ? 'aspect-[3/4]' : 'aspect-[4/3]'}`}
+          />
           {/* Marco guía: solo referencia visual para encuadrar, no recorta */}
           <div
             aria-hidden="true"
-            className="absolute inset-4 sm:inset-6 rounded-xl border-[3px] border-primary pointer-events-none"
+            className={`absolute rounded-xl border-[3px] border-primary pointer-events-none
+              ${formatoDocumento === 'vertical' ? 'inset-x-8 inset-y-3 sm:inset-x-12 sm:inset-y-4' : 'inset-4 sm:inset-6'}`}
           />
           <button
             type="button"
@@ -889,6 +900,7 @@ export default function FormularioInscripcion() {
                   label="Acta de nacimiento"
                   name="acta_nacimiento"
                   caption="Acta completa, legible y sin cortes"
+                  formatoDocumento="vertical"
                   required
                   file={actaNacimiento}
                   onChange={setActaNacimiento}
