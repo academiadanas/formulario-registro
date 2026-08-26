@@ -103,8 +103,10 @@ function DocumentCaptureField({ label, name, caption, ejemplo, required, soloCam
             hover:border-primary hover:bg-primary-50
             ${error ? 'border-red-500 bg-red-50' : 'border-border-warm bg-surface-muted'}`}
         >
-          <span className="text-2xl mb-1">📷</span>
-          <span className="text-sm font-medium text-text-secondary">Tomar foto</span>
+          <span className="text-2xl mb-1">{soloCamara ? '📷' : '📷 📁'}</span>
+          <span className="text-sm font-medium text-text-secondary">
+            {soloCamara ? 'Tomar foto' : 'Tomar foto o subir archivo'}
+          </span>
           {ejemplo && <span className="text-xs text-text-secondary mt-1">{ejemplo}</span>}
           <span className="text-xs text-text-secondary mt-1">Máx. 5 MB</span>
           <input
@@ -621,7 +623,7 @@ export default function FormularioInscripcion() {
               🔒 Aviso de privacidad
             </h2>
             <p className="text-text-secondary text-[0.95rem] mb-4 leading-relaxed">
-              <strong>Academia Danas</strong>, con domicilio en Av. Revolución No. 190, Int. 2,
+              <strong>Academia Dana&apos;s</strong>, con domicilio en Av. Revolución No. 190, Int. 2,
               Colonia Centro, Autlán de Navarro, Jalisco, C.P. 48900, México, es el
               responsable del uso y protección de sus datos personales.
             </p>
