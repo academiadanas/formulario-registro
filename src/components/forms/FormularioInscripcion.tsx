@@ -54,25 +54,32 @@ function construirMensajeErrorSubida(err: unknown): string {
   }
 }
 
-// Campo de captura por cámara para cualquier documento. Flujo: idle (botón
-// "Tomar foto" + ejemplo) → captured (miniatura + botón "Reemplazar"). El
-// overlay visual de encuadre (marco punteado) es una mejora aparte, aún no
-// implementada.
+// Campo de captura por cámara para cualquier documento. Con soloCamara, el
+// flujo es idle (botón "Tomar foto" + ejemplo) → framing (cámara en vivo con
+// marco guía superpuesto) → captured (miniatura + botón "Reemplazar"). El
+// marco es solo guía visual para encuadrar: NO recorta la captura (fase
+// futura). Si getUserMedia falla o no existe, se cae al input nativo con
+// capture="environment" como respaldo. Con soloCamara={false} (Comprobante)
+// no hay cámara en vivo: selector nativo de foto/galería/archivo, como antes.
 interface DocumentCaptureFieldProps {
   label: string;
   name: string;
   caption?: string;
   ejemplo?: string;
   required?: boolean;
-  // true (default): solo cámara en móvil (capture="environment").
+  // true (default): cámara en vivo (o capture="environment" como respaldo).
   // false: selector nativo (foto, galería o archivo/PDF).
   soloCamara?: boolean;
+  // Orientación del documento en el estado framing: 'horizontal' (default,
+  // INE apaisada) o 'vertical' (acta: video más alto que ancho y marco guía
+  // en franja vertical angosta).
+  formatoDocumento?: 'horizontal' | 'vertical';
   file: File | null;
   onChange: (file: File | null) => void;
   error?: string;
 }
 
-function DocumentCaptureField({ label, name, caption, ejemplo, required, soloCamara = true, file, onChange, error }: DocumentCaptureFieldProps) {
+function DocumentCaptureField({ label, name, caption, ejemplo, required, soloCamara = true, formatoDocumento = 'horizontal', file, onChange, error }: DocumentCaptureFieldProps) {
   const esImagen = file !== null && file.type.startsWith('image/');
   const previewUrl = useMemo(
     () => (file !== null && esImagen ? URL.createObjectURL(file) : null),
@@ -85,6 +92,94 @@ function DocumentCaptureField({ label, name, caption, ejemplo, required, soloCam
     };
   }, [previewUrl]);
 
+  // ---- Cámara en vivo (solo con soloCamara) ----
+  const [framing, setFraming] = useState(false);
+  // Tras un fallo de getUserMedia (sin permiso, sin cámara, sin soporte) los
+  // siguientes intentos van directo al input nativo. Estado para re-render;
+  // ref para el guardia síncrono del onClick del label (el .click()
+  // programático del input burbujea al label en el mismo tick, antes de que
+  // el estado se actualice, y sin la ref se re-interceptaría en bucle).
+  const [usarRespaldo, setUsarRespaldo] = useState(false);
+  const respaldoRef = useRef(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const inputIdleRef = useRef<HTMLInputElement | null>(null);
+
+  // Estado visual del campo. 'captured' se deriva de `file` (no de un estado
+  // interno) para que un clear externo — p. ej. el toggle de menor de edad
+  // limpiando archivos — regrese el campo a idle sin desincronizarse.
+  const modo: 'idle' | 'framing' | 'captured' = framing ? 'framing' : file !== null ? 'captured' : 'idle';
+
+  const detenerCamara = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setFraming(false);
+  };
+
+  const activarRespaldo = () => {
+    respaldoRef.current = true;
+    setUsarRespaldo(true);
+    // La usuaria nunca debe quedarse sin poder subir su documento: se abre el
+    // input nativo. Si el navegador bloquea este click programático (la
+    // activación de usuario expiró con el prompt de permiso), el siguiente
+    // toque en el campo ya va directo al input.
+    inputIdleRef.current?.click();
+  };
+
+  const iniciarCamara = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      activarRespaldo();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      });
+      streamRef.current = stream;
+      setFraming(true);
+    } catch {
+      activarRespaldo();
+    }
+  };
+
+  // Conecta el stream al <video> cuando el estado framing ya lo montó.
+  useEffect(() => {
+    if (framing && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [framing]);
+
+  // Nunca dejar la cámara encendida de fondo si el componente se desmonta
+  // durante framing (p. ej. la alumna navega a otro paso sin cancelar).
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    };
+  }, []);
+
+  const capturarFoto = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.videoWidth === 0) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+    detenerCamara();
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          onChange(new File([blob], `documento-${Date.now()}.jpg`, { type: 'image/jpeg' }));
+        }
+      },
+      'image/jpeg',
+      0.92
+    );
+  };
+
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) =>
     onChange(e.target.files?.[0] || null);
 
@@ -96,29 +191,41 @@ function DocumentCaptureField({ label, name, caption, ejemplo, required, soloCam
       </label>
       {caption && <span className="block text-sm text-text-secondary italic mb-2">{caption}</span>}
 
-      {file === null ? (
-        <label
-          className={`flex flex-col items-center justify-center w-full p-4 sm:p-5 border-2 border-dashed rounded-xl cursor-pointer
-            transition-all duration-300
-            hover:border-primary hover:bg-primary-50
-            ${error ? 'border-red-500 bg-red-50' : 'border-border-warm bg-surface-muted'}`}
-        >
-          <span className="text-2xl mb-1">{soloCamara ? '📷' : '📷 📁'}</span>
-          <span className="text-sm font-medium text-text-secondary">
-            {soloCamara ? 'Tomar foto' : 'Tomar foto o subir archivo'}
-          </span>
-          {ejemplo && <span className="text-xs text-text-secondary mt-1">{ejemplo}</span>}
-          <span className="text-xs text-text-secondary mt-1">Máx. 5 MB</span>
-          <input
-            type="file"
-            name={name}
-            accept="image/*,application/pdf"
-            capture={soloCamara ? 'environment' : undefined}
-            onChange={handleFileChange}
-            className="hidden"
+      {modo === 'framing' ? (
+        <div className="relative w-full overflow-hidden rounded-xl border-2 border-border-warm bg-black">
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            className={`w-full object-cover ${formatoDocumento === 'vertical' ? 'aspect-[3/4]' : 'aspect-[4/3]'}`}
           />
-        </label>
-      ) : (
+          {/* Marco guía: solo referencia visual para encuadrar, no recorta */}
+          <div
+            aria-hidden="true"
+            className={`absolute rounded-xl border-[3px] border-primary pointer-events-none
+              ${formatoDocumento === 'vertical' ? 'inset-x-8 inset-y-3 sm:inset-x-12 sm:inset-y-4' : 'inset-4 sm:inset-6'}`}
+          />
+          <button
+            type="button"
+            onClick={detenerCamara}
+            aria-label="Cancelar"
+            className="absolute top-2 right-2 w-9 h-9 rounded-full bg-[rgba(54,41,32,0.7)] text-white flex items-center justify-center"
+          >
+            ✕
+          </button>
+          <div className="absolute bottom-3 inset-x-0 flex justify-center">
+            <button
+              type="button"
+              onClick={capturarFoto}
+              className="px-6 py-3 bg-primary text-white rounded-xl font-semibold
+                shadow-[0_4px_15px_var(--color-primary-35)] transition-colors duration-300"
+            >
+              📷 Capturar
+            </button>
+          </div>
+        </div>
+      ) : modo === 'captured' && file !== null ? (
         <div
           className={`flex items-center gap-3 sm:gap-4 p-3 sm:p-4 border-2 rounded-xl
             ${error ? 'border-red-500 bg-red-50' : 'border-green-400 bg-green-50'}`}
@@ -136,22 +243,64 @@ function DocumentCaptureField({ label, name, caption, ejemplo, required, soloCam
           <span className="flex-grow min-w-0 text-sm font-medium text-green-700 truncate">
             {file.name}
           </span>
-          <label
-            className="flex-shrink-0 text-secondary text-sm font-medium underline cursor-pointer
-              transition-colors duration-300 hover:text-secondary-dark"
-          >
-            Reemplazar
-            <input
-              type="file"
-              name={name}
-              accept="image/*,application/pdf"
-              capture="environment"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-          </label>
+          {soloCamara && !usarRespaldo ? (
+            <button
+              type="button"
+              onClick={() => void iniciarCamara()}
+              className="flex-shrink-0 text-secondary text-sm font-medium underline cursor-pointer
+                transition-colors duration-300 hover:text-secondary-dark"
+            >
+              Reemplazar
+            </button>
+          ) : (
+            <label
+              className="flex-shrink-0 text-secondary text-sm font-medium underline cursor-pointer
+                transition-colors duration-300 hover:text-secondary-dark"
+            >
+              Reemplazar
+              <input
+                type="file"
+                name={name}
+                accept="image/*,application/pdf"
+                capture={soloCamara ? 'environment' : undefined}
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </label>
+          )}
         </div>
+      ) : (
+        <label
+          onClick={(e) => {
+            if (soloCamara && !respaldoRef.current) {
+              e.preventDefault();
+              void iniciarCamara();
+            }
+          }}
+          className={`flex flex-col items-center justify-center w-full p-4 sm:p-5 border-2 border-dashed rounded-xl cursor-pointer
+            transition-all duration-300
+            hover:border-primary hover:bg-primary-50
+            ${error ? 'border-red-500 bg-red-50' : 'border-border-warm bg-surface-muted'}`}
+        >
+          <span className="text-2xl mb-1">{soloCamara ? '📷' : '📷 📁'}</span>
+          <span className="text-sm font-medium text-text-secondary">
+            {soloCamara ? 'Tomar foto' : 'Tomar foto o subir archivo'}
+          </span>
+          {ejemplo && <span className="text-xs text-text-secondary mt-1">{ejemplo}</span>}
+          <span className="text-xs text-text-secondary mt-1">Máx. 5 MB</span>
+          <input
+            ref={inputIdleRef}
+            type="file"
+            name={name}
+            accept="image/*,application/pdf"
+            capture={soloCamara ? 'environment' : undefined}
+            onChange={handleFileChange}
+            className="hidden"
+          />
+        </label>
       )}
+
+      <canvas ref={canvasRef} className="hidden" />
 
       {error && <span className="text-red-500 text-sm mt-1 block">{error}</span>}
     </div>
@@ -751,6 +900,7 @@ export default function FormularioInscripcion() {
                   label="Acta de nacimiento"
                   name="acta_nacimiento"
                   caption="Acta completa, legible y sin cortes"
+                  formatoDocumento="vertical"
                   required
                   file={actaNacimiento}
                   onChange={setActaNacimiento}
