@@ -54,6 +54,14 @@ function construirMensajeErrorSubida(err: unknown): string {
   }
 }
 
+// Solo en celulares se abre la cámara en vivo; en desktop (aunque haya
+// webcam) se cae directo al input nativo, que ahí abre el explorador de
+// archivos normal.
+const esMobil = () =>
+  /Android|iPhone|iPad|iPod|IEMobile|BlackBerry|Opera Mini/i.test(
+    navigator.userAgent
+  );
+
 // Campo de captura por cámara para cualquier documento. Con soloCamara, el
 // flujo es idle (botón "Tomar foto" + ejemplo) → framing (cámara en vivo con
 // marco guía superpuesto) → captured (miniatura + botón "Reemplazar"). El
@@ -128,7 +136,7 @@ function DocumentCaptureField({ label, name, caption, ejemplo, required, soloCam
   };
 
   const iniciarCamara = async () => {
-    if (!navigator.mediaDevices?.getUserMedia) {
+    if (!esMobil() || !navigator.mediaDevices?.getUserMedia) {
       activarRespaldo();
       return;
     }
@@ -1190,7 +1198,7 @@ export default function FormularioInscripcion() {
             />
           )}
 
-          <Input label="Teléfono" value={familiarTelefono} onChange={(e) => handlePhoneInput(e.target.value, setFamiliarTelefono)} required inputMode="numeric" maxLength={10} error={errors.famTelefono} />
+          <Input label="Teléfono" placeholder="10 dígitos" value={familiarTelefono} onChange={(e) => handlePhoneInput(e.target.value, setFamiliarTelefono)} required inputMode="numeric" maxLength={10} error={errors.famTelefono} />
           <Input label="Calle" value={familiarCalle} onChange={(e) => setFamiliarCalle(e.target.value)} required error={errors.famCalle} />
           <div className="grid grid-cols-2 gap-3">
             <Input label="Número" value={familiarNumero} onChange={(e) => setFamiliarNumero(e.target.value)} required error={errors.famNumero} />
@@ -1287,7 +1295,7 @@ export default function FormularioInscripcion() {
             />
           )}
 
-          <Input label="Teléfono" value={emergenciaTelefono} onChange={(e) => handlePhoneInput(e.target.value, setEmergenciaTelefono)} required inputMode="numeric" maxLength={10} error={errors.emTelefono} />
+          <Input label="Teléfono" placeholder="10 dígitos" value={emergenciaTelefono} onChange={(e) => handlePhoneInput(e.target.value, setEmergenciaTelefono)} required inputMode="numeric" maxLength={10} error={errors.emTelefono} />
 
           <StepNavigation
             currentStep={currentStep}
