@@ -30,7 +30,7 @@ export const FILE_CONFIG = {
 // =============================================
 export const ACADEMIA_INFO = {
     nombre: "Academia Danas",
-    direccion: "Av. Revolución 192, Autlán de Navarro, Jalisco",
+    direccion: "Av. Revolución No. 190, Int. 2, Colonia Centro, Autlán de Navarro, Jalisco, C.P. 48900, México",
     codigoPostal: "48900",
     telefono: "317 132 3237",
     correo: "academia@academiadanas.com",

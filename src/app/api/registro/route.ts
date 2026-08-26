@@ -14,6 +14,18 @@ function toTitleCase(str: string): string {
         .join(' ');
 }
 
+// Edad exacta (respetando mes/día). La verdad sobre menor/adulto la decide el
+// servidor con fecha_nacimiento — nunca un flag que venga del cliente.
+function calcularEdad(fechaNacimiento: string, referencia: Date): number {
+    const nacimiento = new Date(fechaNacimiento);
+    let edad = referencia.getFullYear() - nacimiento.getFullYear();
+    const m = referencia.getMonth() - nacimiento.getMonth();
+    if (m < 0 || (m === 0 && referencia.getDate() < nacimiento.getDate())) {
+        edad--;
+    }
+    return edad;
+}
+
 function rutaValida(ruta: unknown, uploadId: string): ruta is string {
     return (
         typeof ruta === "string" &&
@@ -50,7 +62,9 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const rutaIne = (rutas as Record<string, unknown>).ruta_ine;
+        const rutaIneFrente = (rutas as Record<string, unknown>).ruta_ine_frente;
+        const rutaIneReverso = (rutas as Record<string, unknown>)
+            .ruta_ine_reverso;
         const rutaActa = (rutas as Record<string, unknown>).ruta_acta_nacimiento;
         const rutaComprobante = (rutas as Record<string, unknown>)
             .ruta_comprobante_domicilio;
@@ -81,23 +95,67 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Solo se exigen INE y comprobante si el curso lo requiere.
-        if (programa.requiere_documentos === true) {
-            if (!rutaValida(rutaIne, uploadId)) {
-                return NextResponse.json(
-                    { error: "La ruta de la INE es obligatoria o no es válida" },
-                    { status: 400 },
-                );
-            }
+        // Documentos exigidos según edad (calculada server-side con
+        // fecha_nacimiento; el registro se guarda ahora, así que la
+        // referencia es la fecha actual):
+        //   menor de 18 → acta + comprobante (sin INE)
+        //   adulto      → INE frente y reverso + comprobante (acta opcional)
+        const esMenor =
+            typeof body.fecha_nacimiento === "string" &&
+            body.fecha_nacimiento.trim() !== "" &&
+            calcularEdad(body.fecha_nacimiento.trim(), new Date()) < 18;
 
-            if (!rutaValida(rutaComprobante, uploadId)) {
-                return NextResponse.json(
-                    {
-                        error:
-                            "La ruta del comprobante de domicilio es obligatoria o no es válida",
-                    },
-                    { status: 400 },
-                );
+        if (programa.requiere_documentos === true) {
+            if (esMenor) {
+                if (!rutaValida(rutaActa, uploadId)) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                "La ruta del acta de nacimiento es obligatoria o no es válida",
+                        },
+                        { status: 400 },
+                    );
+                }
+
+                if (!rutaValida(rutaComprobante, uploadId)) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                "La ruta del comprobante de domicilio es obligatoria o no es válida",
+                        },
+                        { status: 400 },
+                    );
+                }
+            } else {
+                if (!rutaValida(rutaIneFrente, uploadId)) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                "La ruta del frente de la INE es obligatoria o no es válida",
+                        },
+                        { status: 400 },
+                    );
+                }
+
+                if (!rutaValida(rutaIneReverso, uploadId)) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                "La ruta del reverso de la INE es obligatoria o no es válida",
+                        },
+                        { status: 400 },
+                    );
+                }
+
+                if (!rutaValida(rutaComprobante, uploadId)) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                "La ruta del comprobante de domicilio es obligatoria o no es válida",
+                        },
+                        { status: 400 },
+                    );
+                }
             }
         }
 
@@ -117,6 +175,7 @@ export async function POST(request: NextRequest) {
             "nombre",
             "apellido_paterno",
             "apellido_materno",
+            "sexo",
             "telefono_celular",
             "correo_electronico",
             "estado_civil",
@@ -192,7 +251,12 @@ export async function POST(request: NextRequest) {
         // rutaValida arriba, así que el valor es el path válido.
         const insertPayload: Record<string, string | null> = {
             ...registroData,
-            ruta_ine: rutaValida(rutaIne, uploadId) ? rutaIne : null,
+            ruta_ine_frente: rutaValida(rutaIneFrente, uploadId)
+                ? rutaIneFrente
+                : null,
+            ruta_ine_reverso: rutaValida(rutaIneReverso, uploadId)
+                ? rutaIneReverso
+                : null,
             ruta_acta_nacimiento: rutaValida(rutaActa, uploadId) ? rutaActa : null,
             ruta_comprobante_domicilio: rutaValida(rutaComprobante, uploadId)
                 ? rutaComprobante
@@ -246,9 +310,10 @@ export async function POST(request: NextRequest) {
                 .maybeSingle();
 
             if (alumnaExistente) {
-                // Actualizar datos de la alumna existente (NO actualizar sexo)
+                // Actualizar datos de la alumna existente
                 const alumnaUpdate = {
                     nombre_completo: toTitleCase(nombreCompleto),
+                    sexo: toTitleCase(registroData.sexo || ''),
                     celular: registroData.telefono_celular || null,
                     fecha_nacimiento: registroData.fecha_nacimiento || null,
                     estado_civil: toTitleCase(registroData.estado_civil || ''),
@@ -272,6 +337,7 @@ export async function POST(request: NextRequest) {
                 // Insertar nueva alumna
                 const alumnaInsert = {
                     nombre_completo: toTitleCase(nombreCompleto),
+                    sexo: toTitleCase(registroData.sexo || ''),
                     celular: registroData.telefono_celular || null,
                     email: emailBusqueda || null,
                     fecha_nacimiento: registroData.fecha_nacimiento || null,

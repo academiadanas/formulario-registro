@@ -36,25 +36,46 @@ export async function POST(
       return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 });
     }
 
+    // Idempotencia: si el correo ya se envió para este registro, no se
+    // reenvía — se responde con el mismo shape de éxito sin llamar a Resend.
+    if (registro.contrato_enviado_at) {
+      return NextResponse.json({
+        success: true,
+        registroId,
+        emailSent: true,
+        emailError: '',
+        correoEnviado: registro.correo_electronico,
+      });
+    }
+
     // Enviar correo
     let emailSent = false;
     let emailError = '';
 
     if (resend && registro.correo_electronico) {
       try {
-        await resend.emails.send({
+        // El SDK de Resend NO lanza en errores de API: devuelve { error }.
+        // Solo se marca enviado (y se escribe contrato_enviado_at) cuando
+        // Resend confirma el envío — un fallo genuino queda reintentable.
+        const { error: sendError } = await resend.emails.send({
           from: `${ACADEMIA_INFO.nombre} <${ACADEMIA_INFO.correo}>`,
           to: registro.correo_electronico,
           subject: `✅ Confirmación de Inscripción - ${ACADEMIA_INFO.nombre} (Folio #${registroId})`,
           html: buildEmailHTML(registro as Registro),
         });
-        emailSent = true;
 
-        // Registrar que el correo con el contrato fue enviado
-        await supabase
-          .from('registros')
-          .update({ contrato_enviado_at: new Date().toISOString() })
-          .eq('id', registroId);
+        if (sendError) {
+          console.error('Error enviando correo:', sendError);
+          emailError = sendError.message || 'Error al enviar correo';
+        } else {
+          emailSent = true;
+
+          // Registrar que el correo con el contrato fue enviado
+          await supabase
+            .from('registros')
+            .update({ contrato_enviado_at: new Date().toISOString() })
+            .eq('id', registroId);
+        }
       } catch (err) {
         console.error('Error enviando correo:', err);
         emailError = err instanceof Error ? err.message : 'Error al enviar correo';

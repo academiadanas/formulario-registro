@@ -15,7 +15,7 @@ export class UploadError extends Error {
 }
 
 // Nota: si la usuaria reemplaza un archivo durante la misma sesión por uno con
-// distinta extensión (p. ej. ine.jpg → ine.pdf), el archivo previo queda
+// distinta extensión (p. ej. ine_frente.jpg → ine_frente.pdf), el archivo previo queda
 // huérfano en `temp/{uploadId}/` porque el path cambia con la extensión. La
 // fila en BD apunta siempre al último subido; los huérfanos se limpian aparte.
 export async function uploadFile(

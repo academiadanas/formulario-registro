@@ -1,17 +1,32 @@
-@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap");
 @import "tailwindcss";
 
 @theme {
-    --color-primary: #e74a82;
-    --color-primary-light: #f07da6;
-    --color-primary-dark: #d22c64;
-    --color-primary-50: rgba(231, 74, 130, 0.08);
+    --color-primary: #b5814a;
+    --color-primary-dark: #82591e;
+    --color-primary-light: #cfa478;
+    --color-primary-50: rgba(181, 129, 74, 0.08);
+    --color-primary-35: rgba(181, 129, 74, 0.35);
+    --color-primary-45: rgba(181, 129, 74, 0.45);
+
+    --color-secondary: #b64d84;
+    --color-secondary-dark: #ab5d82;
+    --color-secondary-light: #cfa2b9;
+    --color-secondary-50: rgba(182, 77, 132, 0.06);
+
+    --color-cream: #faf5ef;
+    --color-surface: #ffffff;
+    --color-surface-muted: #f6efe7;
+    --color-border-warm: #e9ddd0;
+    --color-text-primary: #362920;
+    --color-text-secondary: #7a6a5c;
+
+    --font-sans: var(--font-sans), "Segoe UI", sans-serif;
+    --font-serif: var(--font-serif), Georgia, serif;
 }
 
 @layer base {
     body {
-        font-family: "Poppins", "Segoe UI", sans-serif;
-        @apply text-gray-800 antialiased;
+        @apply text-text-primary antialiased;
     }
 }
 @keyframes modalIn {
