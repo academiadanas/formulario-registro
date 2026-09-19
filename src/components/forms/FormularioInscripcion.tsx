@@ -805,7 +805,7 @@ export default function FormularioInscripcion() {
               </div>
             </div>
             <p className="text-text-secondary text-sm mb-2">
-              Para conocer mayor información, consulta los siguientes documentos:
+              Antes de continuar, consulta los siguientes documentos:
             </p>
             <ul className="space-y-2 text-sm">
               <li>
