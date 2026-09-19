@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-public";
+import { VERSIONES_DOCUMENTOS } from "@/lib/constants";
 
 const UUID_REGEX =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -39,6 +40,19 @@ export async function POST(request: NextRequest) {
     try {
         const supabase = createPublicSupabaseClient();
         const body = await request.json();
+
+        // === Guard de aceptación de documentos legales ===
+        // El checkbox del paso 1 es compuerta en el cliente; aquí se garantiza
+        // server-side que ningún registro se inserta sin aceptación explícita.
+        if (body.aceptacion_documentos !== true) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Debes aceptar los documentos legales para completar tu registro.",
+                },
+                { status: 400 },
+            );
+        }
 
         // === Validaciones server-side de uploadId y rutas ===
         const { uploadId, rutas } = body;
@@ -249,7 +263,10 @@ export async function POST(request: NextRequest) {
         // Rutas null-safe: para cursos sin documentos llegan vacías y se insertan
         // como null (igual que el acta). Para cursos que sí requieren, ya pasaron
         // rutaValida arriba, así que el valor es el path válido.
-        const insertPayload: Record<string, string | null> = {
+        // Aceptación de documentos: garantizada por el guard de arriba. Las
+        // versiones se estampan desde la constante server-side (nunca del
+        // cliente). aceptacion_documentos_at lo llena DEFAULT now() en la BD.
+        const insertPayload: Record<string, string | boolean | null> = {
             ...registroData,
             ruta_ine_frente: rutaValida(rutaIneFrente, uploadId)
                 ? rutaIneFrente
@@ -262,6 +279,10 @@ export async function POST(request: NextRequest) {
                 ? rutaComprobante
                 : null,
             upload_session_id: uploadId,
+            aceptacion_documentos: true,
+            version_contrato: VERSIONES_DOCUMENTOS.contrato,
+            version_terminos: VERSIONES_DOCUMENTOS.terminos,
+            version_aviso_privacidad: VERSIONES_DOCUMENTOS.avisoPrivacidad,
         };
 
         // Insertar registro

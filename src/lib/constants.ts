@@ -38,3 +38,14 @@ export const ACADEMIA_INFO = {
     logo: "https://vynfcgvpljnvoiqrqyti.supabase.co/storage/v1/object/public/assets/logo_academiadanas_color.png",
     reglamento: "https://tinyurl.com/reglamentoad",
 };
+
+// =============================================
+// Versiones de los documentos legales (fecha de "Última actualización")
+// Único punto de cambio: al publicar una nueva versión de un documento,
+// actualizar aquí la fecha. Se estampan server-side en /api/registro.
+// =============================================
+export const VERSIONES_DOCUMENTOS = {
+    contrato: "2026-09-18",
+    terminos: "2026-09-18",
+    avisoPrivacidad: "2026-09-03",
+} as const;

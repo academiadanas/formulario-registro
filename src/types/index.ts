@@ -63,6 +63,13 @@ export interface Registro {
   fecha_registro: string;
   updated_at: string;
   contrato_enviado_at?: string;
+
+  // Aceptación de documentos legales (NULL en registros históricos)
+  aceptacion_documentos: boolean | null;
+  aceptacion_documentos_at: string | null;
+  version_contrato: string | null;
+  version_terminos: string | null;
+  version_aviso_privacidad: string | null;
 }
 
 // Datos del formulario de inscripción (sin id ni metadatos)

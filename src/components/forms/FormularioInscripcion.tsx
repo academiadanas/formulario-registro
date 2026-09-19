@@ -723,6 +723,7 @@ export default function FormularioInscripcion() {
           ...payload,
           uploadId: uploadIdRef.current,
           rutas,
+          aceptacion_documentos: aceptaAviso,
         }),
       });
 

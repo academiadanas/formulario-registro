@@ -79,6 +79,7 @@ Columnas relevantes para esta app:
 - `ruta_comprobante_domicilio` — text, ruta en Storage. Formato: `temp/{uuid}/comprobante_domicilio.{ext}`. Obligatorio en INSERT desde formulario público.
 - `ruta_acta_nacimiento` — text, opcional (solo cursos que la requieren).
 - `upload_session_id` — UUID, nullable. Identifica la sesión de upload del cliente. Permite limpieza de Storage huérfano. NULL para registros históricos pre-Abril 2026 (ids 1-22 migración por CSV + algunos posteriores).
+- **Aceptación de documentos legales (Septiembre 2026):** `aceptacion_documentos` (boolean), `aceptacion_documentos_at` (timestamptz, `DEFAULT now()`, la BD lo llena), `version_contrato`, `version_terminos`, `version_aviso_privacidad` (date). Todas nullable; NULL en históricos, sin backfill. El cliente envía `aceptacion_documentos` con el valor real del checkbox `aceptaAviso`; `/api/registro` tiene un guard que responde 400 si no es `=== true`, e inserta `aceptacion_documentos: true` más las tres versiones tomadas de `VERSIONES_DOCUMENTOS` en `src/lib/constants.ts` (único punto de cambio al actualizar un documento). Las versiones nunca viajan desde el cliente.
 
 ### Efecto colateral: tabla `alumnas`
 
