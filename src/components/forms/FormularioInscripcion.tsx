@@ -483,7 +483,7 @@ export default function FormularioInscripcion() {
     switch (step) {
       case 1:
         if (!aceptaAviso) {
-          newErrors.aviso = 'Debes aceptar el Aviso de Privacidad';
+          newErrors.aviso = 'Debes aceptar el Aviso de Privacidad, el Contrato y los Términos y Condiciones para continuar.';
         }
         break;
 
@@ -804,12 +804,26 @@ export default function FormularioInscripcion() {
                 Trámite de registro ante el Instituto de Formación para el Trabajo del Estado de Jalisco (IDEFT).
               </div>
             </div>
-            <p className="text-text-secondary text-sm">
-              Para conocer mayor información, consulta el aviso de privacidad en:{' '}
-              <a href="https://academiadanas.com/aviso-privacidad" target="_blank" className="text-secondary font-medium hover:underline">
-                academiadanas.com/aviso-privacidad
-              </a>
+            <p className="text-text-secondary text-sm mb-2">
+              Para conocer mayor información, consulta los siguientes documentos:
             </p>
+            <ul className="space-y-2 text-sm">
+              <li>
+                <a href="https://www.academiadanas.com/aviso-privacidad" target="_blank" rel="noopener noreferrer" className="text-secondary font-medium hover:underline">
+                  Aviso de Privacidad
+                </a>
+              </li>
+              <li>
+                <a href="https://www.academiadanas.com/contrato-servicios-educativos" target="_blank" rel="noopener noreferrer" className="text-secondary font-medium hover:underline">
+                  Contrato de Prestación de Servicios Educativos
+                </a>
+              </li>
+              <li>
+                <a href="https://www.academiadanas.com/terminos-condiciones" target="_blank" rel="noopener noreferrer" className="text-secondary font-medium hover:underline">
+                  Términos y Condiciones
+                </a>
+              </li>
+            </ul>
           </div>
 
           <label
@@ -823,7 +837,8 @@ export default function FormularioInscripcion() {
               className="w-5 h-5 accent-primary mt-0.5 flex-shrink-0"
             />
             <span className="text-[0.95rem]">
-              He leído y acepto el aviso de privacidad
+              He tenido acceso y acepto el Aviso de Privacidad, el Contrato de Prestación de Servicios
+              Educativos y los Términos y Condiciones de Academia Dana&apos;s.
               <span className="text-secondary font-bold ml-1">*</span>
             </span>
           </label>
