@@ -45,7 +45,7 @@ export const ACADEMIA_INFO = {
 // actualizar aquí la fecha. Se estampan server-side en /api/registro.
 // =============================================
 export const VERSIONES_DOCUMENTOS = {
-    contrato: "2026-09-18",
-    terminos: "2026-09-18",
-    avisoPrivacidad: "2026-09-03",
+    contrato: "2026-09-22",
+    terminos: "2026-09-22",
+    avisoPrivacidad: "2026-09-22",
 } as const;
