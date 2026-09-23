@@ -40,12 +40,35 @@ export const ACADEMIA_INFO = {
 };
 
 // =============================================
-// Versiones de los documentos legales (fecha de "Última actualización")
+// Documentos legales publicados en www.academiadanas.com
 // Único punto de cambio: al publicar una nueva versión de un documento,
-// actualizar aquí la fecha. Se estampan server-side en /api/registro.
+// actualizar aquí lastUpdated (leyenda "Última actualización" del sitio)
+// y sha256 (tomado de https://academiadanas.com/legal/versiones.json).
+// El script scripts/verificar-versiones-legales.mts compara estos valores
+// contra el sitio en cada build (ver CLAUDE.md).
 // =============================================
+export const DOCUMENTOS_LEGALES = {
+    contrato: {
+        slug: "contrato-servicios-educativos",
+        lastUpdated: "2026-09-22",
+        sha256: "e8eb195306a1ca537f84ace0905ce5e7ddb424770348ce4c1ef8ebc920d27980",
+    },
+    terminos: {
+        slug: "terminos-condiciones",
+        lastUpdated: "2026-09-22",
+        sha256: "f13d1b090b6ea94a6219c15fd8b78a42b3aac117782421527cad6f0730418442",
+    },
+    avisoPrivacidad: {
+        slug: "aviso-privacidad",
+        lastUpdated: "2026-09-22",
+        sha256: "354380fe05c5477eb7c1afc5e37ab43a3270f69c1fcd113341718a55d4c095c3",
+    },
+} as const;
+
+// Fechas de versión que /api/registro estampa en cada registro.
+// Derivadas de DOCUMENTOS_LEGALES: no editar aquí.
 export const VERSIONES_DOCUMENTOS = {
-    contrato: "2026-09-22",
-    terminos: "2026-09-22",
-    avisoPrivacidad: "2026-09-22",
+    contrato: DOCUMENTOS_LEGALES.contrato.lastUpdated,
+    terminos: DOCUMENTOS_LEGALES.terminos.lastUpdated,
+    avisoPrivacidad: DOCUMENTOS_LEGALES.avisoPrivacidad.lastUpdated,
 } as const;

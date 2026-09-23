@@ -79,7 +79,7 @@ Columnas relevantes para esta app:
 - `ruta_comprobante_domicilio` — text, ruta en Storage. Formato: `temp/{uuid}/comprobante_domicilio.{ext}`. Obligatorio en INSERT desde formulario público.
 - `ruta_acta_nacimiento` — text, opcional (solo cursos que la requieren).
 - `upload_session_id` — UUID, nullable. Identifica la sesión de upload del cliente. Permite limpieza de Storage huérfano. NULL para registros históricos pre-Abril 2026 (ids 1-22 migración por CSV + algunos posteriores).
-- **Aceptación de documentos legales (Septiembre 2026):** `aceptacion_documentos` (boolean), `aceptacion_documentos_at` (timestamptz, `DEFAULT now()`, la BD lo llena), `version_contrato`, `version_terminos`, `version_aviso_privacidad` (date). Todas nullable; NULL en históricos, sin backfill. El cliente envía `aceptacion_documentos` con el valor real del checkbox `aceptaAviso`; `/api/registro` tiene un guard que responde 400 si no es `=== true`, e inserta `aceptacion_documentos: true` más las tres versiones tomadas de `VERSIONES_DOCUMENTOS` en `src/lib/constants.ts` (único punto de cambio al actualizar un documento). Las versiones nunca viajan desde el cliente.
+- **Aceptación de documentos legales (Septiembre 2026):** `aceptacion_documentos` (boolean), `aceptacion_documentos_at` (timestamptz, `DEFAULT now()`, la BD lo llena), `version_contrato`, `version_terminos`, `version_aviso_privacidad` (date). Todas nullable; NULL en históricos, sin backfill. El cliente envía `aceptacion_documentos` con el valor real del checkbox `aceptaAviso`; `/api/registro` tiene un guard que responde 400 si no es `=== true`, e inserta `aceptacion_documentos: true` más las tres versiones tomadas de `VERSIONES_DOCUMENTOS` en `src/lib/constants.ts` (único punto de cambio al actualizar un documento). Las versiones nunca viajan desde el cliente. Desde Septiembre 2026 `VERSIONES_DOCUMENTOS` es derivada de `DOCUMENTOS_LEGALES` (misma constante, más `slug` y `sha256` por documento); ver sección "Validación de versiones legales en build".
 
 ### Efecto colateral: tabla `alumnas`
 
@@ -104,6 +104,28 @@ Columnas relevantes para esta app:
 - Subida pública permitida para `anon` (los formularios públicos suben con signed URL)
 - Acceso completo (lectura/escritura) para `authenticated`
 - **Advertencia conocida:** el bucket tiene "broad SELECT policy" que permite `list()`. Considerar restringir en iteración futura de seguridad.
+
+---
+
+## Validación de versiones legales en build
+
+El sitio web (repo aparte) publica `https://academiadanas.com/legal/versiones.json` con, por documento (slug), la fecha de "Última actualización" (`lastUpdated`) y el `sha256` del texto. El script `scripts/verificar-versiones-legales.mts` corre como `prebuild` (antes de `next build` vía `npm run build`) y compara ese JSON contra `DOCUMENTOS_LEGALES` en `src/lib/constants.ts`.
+
+**Comportamiento:**
+- JSON inaccesible (timeout 5 s, un reintento), malformado o con `schemaVersion` desconocido: aviso y el build continúa.
+- Fecha o hash distintos, o slug ausente en el JSON: **falla el build en producción** (`VERCEL_ENV=production`); solo aviso en previews y en local.
+- Documento en el JSON que no está en `DOCUMENTOS_LEGALES`: aviso siempre, nunca fallo.
+- `LEGAL_VERSIONS_CHECK=off`: omite la verificación (solo emergencias; configurar como variable de entorno en Vercel y quitarla después).
+- Invocar `next build` directo se salta el prebuild. Usar siempre `npm run build`.
+
+**Procedimiento al modificar un documento legal (orden obligatorio):**
+1. En el repo del sitio web: publicar el texto nuevo y subir la leyenda "Última actualización". Esperar a que `versiones.json` en producción muestre la fecha y el hash nuevos.
+2. En este repo: copiar `lastUpdated` y `sha256` del JSON a la entrada correspondiente de `DOCUMENTOS_LEGALES`. Es el único archivo que se toca. Ejemplo previo del procedimiento: commit `1e84c7c`.
+3. `npm run build`, commit, push a `main`.
+
+Si el hash cambia pero la fecha no, el texto se editó en el sitio sin subir versión. El script explica las dos salidas: publicar versión nueva (cambio de fondo) o copiar solo el hash (corrección menor). Los registros históricos nunca se tocan: cada uno conserva la fecha de versión que aceptó.
+
+El script se ejecuta con Node directamente (type stripping, requiere Node >= 22.18; `engines` en package.json lo fija). `scripts/` está excluido de `tsconfig.json` para que el type-check de Next no procese el import con extensión `.ts`.
 
 ---
 
