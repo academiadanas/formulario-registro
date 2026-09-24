@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
         const { data: programa, error: programaError } = await supabase
             .from("programas")
-            .select("codigo, requiere_documentos")
+            .select("codigo, requiere_documentos, ficha_version")
             .eq("codigo", cursoNormalizado)
             .eq("activo", true)
             .maybeSingle();
@@ -106,6 +106,21 @@ export async function POST(request: NextRequest) {
                         "El curso seleccionado no es válido o no está disponible",
                 },
                 { status: 400 },
+            );
+        }
+
+        // Versión de la ficha técnica del programa. Se toma de la fila ya
+        // validada de programas, nunca del cuerpo de la petición. Si el
+        // programa no tiene ficha versionada se guarda null (no se inventa
+        // valor ni se bloquea la inscripción); se deja aviso en logs.
+        const fichaVersion: string | null =
+            typeof programa.ficha_version === "string" &&
+            programa.ficha_version.trim() !== ""
+                ? programa.ficha_version.trim()
+                : null;
+        if (fichaVersion === null) {
+            console.warn(
+                `Programa "${programa.codigo}" sin ficha_version: version_ficha se guarda null`,
             );
         }
 
@@ -283,6 +298,7 @@ export async function POST(request: NextRequest) {
             version_contrato: VERSIONES_DOCUMENTOS.contrato,
             version_terminos: VERSIONES_DOCUMENTOS.terminos,
             version_aviso_privacidad: VERSIONES_DOCUMENTOS.avisoPrivacidad,
+            version_ficha: fichaVersion,
         };
 
         // Insertar registro
