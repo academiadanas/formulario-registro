@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-public";
-import { VERSIONES_DOCUMENTOS } from "@/lib/constants";
+import { DOCUMENTOS_LEGALES, VERSIONES_DOCUMENTOS } from "@/lib/constants";
 
 const UUID_REGEX =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -279,8 +279,9 @@ export async function POST(request: NextRequest) {
         // como null (igual que el acta). Para cursos que sí requieren, ya pasaron
         // rutaValida arriba, así que el valor es el path válido.
         // Aceptación de documentos: garantizada por el guard de arriba. Las
-        // versiones se estampan desde la constante server-side (nunca del
-        // cliente). aceptacion_documentos_at lo llena DEFAULT now() en la BD.
+        // versiones (fecha) y los hashes sha256 del texto de cada documento se
+        // estampan desde la constante server-side (nunca del cliente).
+        // aceptacion_documentos_at lo llena DEFAULT now() en la BD.
         const insertPayload: Record<string, string | boolean | null> = {
             ...registroData,
             ruta_ine_frente: rutaValida(rutaIneFrente, uploadId)
@@ -299,6 +300,9 @@ export async function POST(request: NextRequest) {
             version_terminos: VERSIONES_DOCUMENTOS.terminos,
             version_aviso_privacidad: VERSIONES_DOCUMENTOS.avisoPrivacidad,
             version_ficha: fichaVersion,
+            hash_contrato: DOCUMENTOS_LEGALES.contrato.sha256,
+            hash_terminos: DOCUMENTOS_LEGALES.terminos.sha256,
+            hash_aviso_privacidad: DOCUMENTOS_LEGALES.avisoPrivacidad.sha256,
         };
 
         // Insertar registro

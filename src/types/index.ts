@@ -70,6 +70,9 @@ export interface Registro {
   version_contrato: string | null;
   version_terminos: string | null;
   version_aviso_privacidad: string | null;
+  hash_contrato: string | null;
+  hash_terminos: string | null;
+  hash_aviso_privacidad: string | null;
   version_ficha: string | null;
 }
 
