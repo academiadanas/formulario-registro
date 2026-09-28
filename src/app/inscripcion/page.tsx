@@ -1,7 +1,11 @@
 import FormularioInscripcion from '@/components/forms/FormularioInscripcion';
 
-export const metadata = {
-  title: 'Inscripción - Academia Danas',
+import type { Metadata } from 'next';
+
+// Solo el segmento: el sufijo " | Academia Danas" lo agrega el template del layout raíz.
+// Se usa "Formulario de inscripción" y no "Inscripción" para no duplicar el título de la raíz.
+export const metadata: Metadata = {
+  title: 'Formulario de inscripción',
   description: 'Formulario de inscripción para Academia Danas',
 };
 
