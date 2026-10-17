@@ -29,7 +29,7 @@ Si una tarea requiere modificar el panel administrativo, ESTÁ EN OTRO PROYECTO.
   - `src/app/api/registro/upload-url/route.ts` — emisión de signed upload URLs para archivos
   - `src/app/api/registro/buscar/route.ts` — búsqueda de registro
   - `src/app/api/catalogos/route.ts` — catálogos de estados/municipios
-  - `src/app/api/pdf/[id]/route.ts` — generación de PDF y envío de correo
+  - `src/app/api/pdf/[id]/route.ts` — envío del correo de confirmación de inscripción
 
 No existen rutas API de admin en este proyecto: el panel administrativo y sus endpoints (`/admin/...`, `/api/admin/...`, `/api/programas/admin`) se eliminaron en Julio 2026 porque el panel vive en el proyecto escolar.
 

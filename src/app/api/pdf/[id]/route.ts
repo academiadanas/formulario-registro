@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createPublicSupabaseClient } from '@/lib/supabase-public';
-import { renderToBuffer } from '@react-pdf/renderer';
-import { ComprobantePDF } from '@/lib/pdf-template';
 import { buildEmailHTML } from '@/lib/email-template';
 import { Resend } from 'resend';
 import { Registro } from '@/types';
 import { ACADEMIA_INFO } from '@/lib/constants';
-import React from 'react';
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -95,53 +92,6 @@ export async function POST(
     console.error('Error en API correo:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Error al enviar correo' },
-      { status: 500 }
-    );
-  }
-}
-
-// GET para ver/descargar el PDF directamente
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const registroId = parseInt(id);
-
-    if (isNaN(registroId)) {
-      return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
-    }
-
-    const supabase = createPublicSupabaseClient();
-    const { data: registro, error } = await supabase
-      .from('registros')
-      .select('*')
-      .eq('id', registroId)
-      .single();
-
-    if (error || !registro) {
-      return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 });
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pdfElement = React.createElement(ComprobantePDF, { registro: registro as Registro }) as any;
-    const pdfBuffer = await renderToBuffer(pdfElement);
-    const pdfUint8 = new Uint8Array(pdfBuffer);
-
-    const nombreCompleto = `${registro.nombre} ${registro.apellido_paterno} ${registro.apellido_materno}`.trim();
-    const pdfFileName = `Comprobante_${nombreCompleto.replace(/\s+/g, '_')}_Folio_${registroId}.pdf`;
-
-    return new NextResponse(pdfUint8, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${pdfFileName}"`,
-      },
-    });
-  } catch (error) {
-    console.error('Error descargando PDF:', error);
-    return NextResponse.json(
-      { error: 'Error al generar PDF' },
       { status: 500 }
     );
   }
