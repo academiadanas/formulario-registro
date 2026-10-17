@@ -9,6 +9,7 @@ interface PDFResult {
   success: boolean;
   emailSent: boolean;
   emailError?: string;
+  emailErrorTipo?: 'destinatario' | 'temporal' | 'otro' | null;
   correoEnviado?: string;
   error?: string;
 }
@@ -47,6 +48,24 @@ function GraciasContent() {
         setStatus('error');
       });
   }, [registroId]);
+
+  // Reintento manual del envío. Es seguro: el endpoint es idempotente vía
+  // contrato_enviado_at y solo llama a Resend si el correo no se confirmó.
+  function reintentarEnvio() {
+    if (!registroId) return;
+    setStatus('loading');
+    fetch(`/api/pdf/${registroId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'send' }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setResult(data);
+        setStatus(data.success ? 'success' : 'error');
+      })
+      .catch(() => setStatus('error'));
+  }
 
   return (
     <main className="min-h-screen bg-cream flex items-center justify-center p-5">
@@ -110,6 +129,16 @@ function GraciasContent() {
                   <p className="text-orange-700 text-sm">
                     {result.emailError || 'El correo no pudo ser enviado.'}
                   </p>
+                  {registroId && (
+                    <button
+                      type="button"
+                      onClick={reintentarEnvio}
+                      className="mt-4 bg-primary text-white px-6 py-2 rounded-lg font-semibold
+                        hover:bg-primary-dark transition-all text-sm"
+                    >
+                      Reintentar
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -138,20 +167,8 @@ function GraciasContent() {
               </p>
               {registroId && (
                 <button
-                  onClick={() => {
-                    setStatus('loading');
-                    fetch(`/api/pdf/${registroId}`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ action: 'send' }),
-                    })
-                      .then((res) => res.json())
-                      .then((data) => {
-                        setResult(data);
-                        setStatus(data.success ? 'success' : 'error');
-                      })
-                      .catch(() => setStatus('error'));
-                  }}
+                  type="button"
+                  onClick={reintentarEnvio}
                   className="mt-4 bg-primary text-white px-6 py-2 rounded-lg font-semibold
                     hover:bg-primary-dark transition-all text-sm"
                 >

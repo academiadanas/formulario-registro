@@ -4,6 +4,11 @@ import { buildEmailHTML } from '@/lib/email-template';
 import { Resend } from 'resend';
 import { Registro } from '@/types';
 import { ACADEMIA_INFO } from '@/lib/constants';
+import {
+  clasificarErrorCorreo,
+  MENSAJES_EMAIL_ERROR,
+  type EmailErrorTipo,
+} from '@/lib/email-error';
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -41,6 +46,7 @@ export async function POST(
         registroId,
         emailSent: true,
         emailError: '',
+        emailErrorTipo: null,
         correoEnviado: registro.correo_electronico,
       });
     }
@@ -48,6 +54,7 @@ export async function POST(
     // Enviar correo
     let emailSent = false;
     let emailError = '';
+    let emailErrorTipo: EmailErrorTipo | null = null;
 
     if (resend && registro.correo_electronico) {
       try {
@@ -63,7 +70,10 @@ export async function POST(
 
         if (sendError) {
           console.error('Error enviando correo:', sendError);
-          emailError = sendError.message || 'Error al enviar correo';
+          // Nunca se reenvía el texto de Resend al cliente: se clasifica por
+          // `name` y se responde con mensaje propio (src/lib/email-error.ts).
+          emailErrorTipo = clasificarErrorCorreo(sendError.name);
+          emailError = MENSAJES_EMAIL_ERROR[emailErrorTipo];
         } else {
           emailSent = true;
 
@@ -75,10 +85,12 @@ export async function POST(
         }
       } catch (err) {
         console.error('Error enviando correo:', err);
-        emailError = err instanceof Error ? err.message : 'Error al enviar correo';
+        emailErrorTipo = 'otro';
+        emailError = MENSAJES_EMAIL_ERROR.otro;
       }
     } else if (!resend) {
       emailError = 'Servicio de correo no configurado';
+      emailErrorTipo = 'otro';
     }
 
     return NextResponse.json({
@@ -86,6 +98,7 @@ export async function POST(
       registroId,
       emailSent,
       emailError,
+      emailErrorTipo,
       correoEnviado: registro.correo_electronico,
     });
   } catch (error) {
