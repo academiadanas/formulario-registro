@@ -30,7 +30,6 @@ Si una tarea requiere modificar el panel administrativo, ESTÁ EN OTRO PROYECTO.
   - `src/app/api/registro/buscar/route.ts` — búsqueda de registro
   - `src/app/api/catalogos/route.ts` — catálogos de estados/municipios
   - `src/app/api/pdf/[id]/route.ts` — generación de PDF y envío de correo
-  - `src/app/api/registro/archivos/route.ts` — **DEPRECATED** (ver sección "Pendientes")
 
 No existen rutas API de admin en este proyecto: el panel administrativo y sus endpoints (`/admin/...`, `/api/admin/...`, `/api/programas/admin`) se eliminaron en Julio 2026 porque el panel vive en el proyecto escolar.
 
@@ -132,10 +131,6 @@ El script se ejecuta con Node directamente (type stripping, requiere Node >= 22.
 ---
 
 ## Pendientes / iteraciones futuras
-
-### Borrar endpoint deprecado
-
-`src/app/api/registro/archivos/route.ts` está marcado como DEPRECATED desde Abril 2026. El flujo atómico nuevo no lo usa. Mantener temporalmente por si hay clientes con caché vieja del navegador. Borrar después de varias semanas confirmando que ningún cliente lo invoca.
 
 ### Limpieza de archivos huérfanos en Storage
 
