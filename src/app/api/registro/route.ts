@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicSupabaseClient } from "@/lib/supabase-public";
-import { DOCUMENTOS_LEGALES, VERSIONES_DOCUMENTOS } from "@/lib/constants";
+import {
+    DOCUMENTOS_LEGALES,
+    ESTADOS_USA,
+    VERSIONES_DOCUMENTOS,
+} from "@/lib/constants";
 
 const UUID_REGEX =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -34,6 +38,189 @@ function rutaValida(ruta: unknown, uploadId: string): ruta is string {
         ruta.startsWith(`temp/${uploadId}/`) &&
         !ruta.includes("..")
     );
+}
+
+// === Validación de datos personales ===
+// Réplica exacta de las reglas de validateStep en FormularioInscripcion.tsx:
+// presencia tras trim, teléfonos de 10 dígitos, CP de 5 dígitos, la misma
+// regex de correo, fecha YYYY-MM-DD real y condicionales por el VALOR del país
+// (el cliente nunca envía el literal "OTRO": para otro país manda el nombre
+// escrito). No valida estado_civil, grado_estudios ni parentescos contra sus
+// listas porque "otro" viaja como texto libre, ni pone topes de longitud.
+// Si el cliente cambia una regla, cambiarla aquí también.
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const TELEFONO_REGEX = /^\d{10}$/;
+const CP_REGEX = /^\d{5}$/;
+const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const ESTADOS_USA_VALORES: ReadonlySet<string> = new Set(
+    ESTADOS_USA.map((e) => e.value),
+);
+
+function esFechaReal(valor: string): boolean {
+    if (!FECHA_REGEX.test(valor)) return false;
+    const [anio, mes, dia] = valor.split("-").map(Number);
+    const fecha = new Date(0);
+    fecha.setUTCFullYear(anio, mes - 1, dia);
+    return (
+        fecha.getUTCFullYear() === anio &&
+        fecha.getUTCMonth() === mes - 1 &&
+        fecha.getUTCDate() === dia
+    );
+}
+
+function validarDatosPersonales(
+    d: Readonly<Record<string, string | undefined>>,
+): string[] {
+    const problemas: string[] = [];
+    const valor = (campo: string): string => d[campo] ?? "";
+    const requerir = (campo: string, etiqueta: string): void => {
+        if (valor(campo) === "") problemas.push(`${etiqueta} (obligatorio)`);
+    };
+    const requerirFormato = (
+        campo: string,
+        etiqueta: string,
+        regex: RegExp,
+        descripcion: string,
+    ): void => {
+        if (!regex.test(valor(campo))) {
+            problemas.push(`${etiqueta} (${descripcion})`);
+        }
+    };
+    // Por valor del país: MEXICO exige estado y municipio; ESTADOS UNIDOS
+    // exige un estado de la lista; cualquier otro texto es "otro país" y
+    // exige solo el campo libre indicado, sin municipio.
+    const lugarPorPais = (
+        pais: string,
+        campos: { estado: string; municipio: string; libre: string },
+        etiquetas: { estado: string; municipio: string; libre: string },
+    ): void => {
+        if (pais === "MEXICO") {
+            requerir(campos.estado, etiquetas.estado);
+            requerir(campos.municipio, etiquetas.municipio);
+        } else if (pais === "ESTADOS UNIDOS") {
+            if (!ESTADOS_USA_VALORES.has(valor(campos.estado))) {
+                problemas.push(`${etiquetas.estado} (elige un estado de la lista)`);
+            }
+        } else {
+            requerir(campos.libre, etiquetas.libre);
+        }
+    };
+
+    // Paso 3: datos personales
+    const dp = "Datos personales: ";
+    requerir("nombre", dp + "Nombre(s)");
+    requerir("apellido_paterno", dp + "Apellido Paterno");
+    requerir("apellido_materno", dp + "Apellido Materno");
+    requerir("sexo", dp + "Sexo");
+    requerirFormato(
+        "telefono_celular",
+        dp + "Teléfono Celular",
+        TELEFONO_REGEX,
+        "10 dígitos",
+    );
+    requerirFormato(
+        "correo_electronico",
+        dp + "Correo Electrónico",
+        EMAIL_REGEX,
+        "correo no válido",
+    );
+    requerir("estado_civil", dp + "Estado Civil");
+    requerir("grado_estudios", dp + "Último Grado de Estudios");
+    if (valor("fecha_nacimiento") === "") {
+        requerir("fecha_nacimiento", dp + "Fecha de Nacimiento");
+    } else if (!esFechaReal(valor("fecha_nacimiento"))) {
+        problemas.push(dp + "Fecha de Nacimiento (fecha no válida)");
+    }
+    if (valor("pais_nacimiento") === "") {
+        requerir("pais_nacimiento", dp + "País de Nacimiento");
+    } else {
+        lugarPorPais(
+            valor("pais_nacimiento"),
+            {
+                estado: "estado_nacimiento",
+                municipio: "municipio_nacimiento",
+                libre: "lugar_nacimiento",
+            },
+            {
+                estado: dp + "Estado de Nacimiento",
+                municipio: dp + "Municipio de Nacimiento",
+                libre: dp + "Lugar de Nacimiento",
+            },
+        );
+    }
+
+    // Paso 4: domicilio
+    const dom = "Domicilio: ";
+    requerir("calle_domicilio", dom + "Calle");
+    requerir("numero_exterior", dom + "Número exterior");
+    requerir("colonia_domicilio", dom + "Colonia / Localidad");
+    requerirFormato("codigo_postal", dom + "Código postal", CP_REGEX, "5 dígitos");
+    if (valor("pais_domicilio") === "") {
+        requerir("pais_domicilio", dom + "País");
+    } else {
+        lugarPorPais(
+            valor("pais_domicilio"),
+            {
+                estado: "estado_domicilio",
+                municipio: "municipio_domicilio",
+                libre: "estado_domicilio",
+            },
+            {
+                estado: dom + "Estado",
+                municipio: dom + "Municipio",
+                libre: dom + "Estado/Provincia",
+            },
+        );
+    }
+
+    // Paso 5: datos del familiar. El país no se exige porque el formulario
+    // tampoco lo valida (arranca en MEXICO); si viene, aplican sus condicionales.
+    const fam = "Datos del familiar: ";
+    requerir("familiar_nombre", fam + "Nombre completo");
+    requerir("familiar_parentesco", fam + "Parentesco");
+    requerirFormato(
+        "familiar_telefono",
+        fam + "Teléfono",
+        TELEFONO_REGEX,
+        "10 dígitos",
+    );
+    requerir("familiar_calle", fam + "Calle");
+    requerir("familiar_numero", fam + "Número");
+    requerir("familiar_colonia", fam + "Colonia / Localidad");
+    requerirFormato(
+        "familiar_codigo_postal",
+        fam + "Código postal",
+        CP_REGEX,
+        "5 dígitos",
+    );
+    if (valor("familiar_pais") !== "") {
+        lugarPorPais(
+            valor("familiar_pais"),
+            {
+                estado: "familiar_estado",
+                municipio: "familiar_municipio",
+                libre: "familiar_estado",
+            },
+            {
+                estado: fam + "Estado",
+                municipio: fam + "Municipio",
+                libre: fam + "Estado/Provincia",
+            },
+        );
+    }
+
+    // Paso 6: contacto de emergencia
+    const em = "Contacto de emergencia: ";
+    requerir("emergencia_nombre", em + "Nombre completo");
+    requerir("emergencia_parentesco", em + "Parentesco");
+    requerirFormato(
+        "emergencia_telefono",
+        em + "Teléfono",
+        TELEFONO_REGEX,
+        "10 dígitos",
+    );
+
+    return problemas;
 }
 
 export async function POST(request: NextRequest) {
@@ -76,6 +263,95 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Extraer datos del formulario
+        const registroData: Record<string, string> = {};
+        const campos = [
+            "nombre",
+            "apellido_paterno",
+            "apellido_materno",
+            "sexo",
+            "telefono_celular",
+            "correo_electronico",
+            "estado_civil",
+            "grado_estudios",
+            "fecha_nacimiento",
+            "pais_nacimiento",
+            "estado_nacimiento",
+            "municipio_nacimiento",
+            "lugar_nacimiento",
+            "calle_domicilio",
+            "numero_exterior",
+            "numero_interior",
+            "colonia_domicilio",
+            "codigo_postal",
+            "pais_domicilio",
+            "estado_domicilio",
+            "municipio_domicilio",
+            "familiar_nombre",
+            "familiar_parentesco",
+            "familiar_telefono",
+            "familiar_calle",
+            "familiar_numero",
+            "familiar_colonia",
+            "familiar_codigo_postal",
+            "familiar_pais",
+            "familiar_estado",
+            "familiar_municipio",
+            "emergencia_nombre",
+            "emergencia_parentesco",
+            "emergencia_telefono",
+            "curso",
+        ];
+
+        for (const campo of campos) {
+            const valor = body[campo];
+            if (valor !== undefined && typeof valor === "string") {
+                registroData[campo] = valor.trim();
+            }
+        }
+
+        // === Validación de datos personales (réplica de validateStep) ===
+        // Sobre los valores ya recortados y antes de pasarlos a mayúsculas, de
+        // consultar programas y de calcular la edad: la basura no gasta
+        // consultas. Un solo mensaje porque el formulario muestra únicamente
+        // `error` (FormularioInscripcion.tsx, handleSubmit).
+        const problemas = validarDatosPersonales(registroData);
+        if (problemas.length > 0) {
+            return NextResponse.json(
+                { error: `Revisa estos campos: ${problemas.join("; ")}.` },
+                { status: 400 },
+            );
+        }
+
+        // Convertir a mayúsculas los campos de texto (excepto correo)
+        const camposTexto = campos.filter(
+            (c) =>
+                ![
+                    "correo_electronico",
+                    "telefono_celular",
+                    "fecha_nacimiento",
+                    "numero_exterior",
+                    "numero_interior",
+                    "codigo_postal",
+                    "familiar_telefono",
+                    "familiar_numero",
+                    "familiar_codigo_postal",
+                    "emergencia_telefono",
+                ].includes(c),
+        );
+
+        for (const campo of camposTexto) {
+            if (registroData[campo]) {
+                registroData[campo] = registroData[campo].toUpperCase();
+            }
+        }
+
+        // Correo siempre en minúsculas
+        if (registroData.correo_electronico) {
+            registroData.correo_electronico =
+                registroData.correo_electronico.toLowerCase();
+        }
+
         const rutaIneFrente = (rutas as Record<string, unknown>).ruta_ine_frente;
         const rutaIneReverso = (rutas as Record<string, unknown>)
             .ruta_ine_reverso;
@@ -84,7 +360,7 @@ export async function POST(request: NextRequest) {
             .ruta_comprobante_domicilio;
 
         // === Whitelist del curso + exigencia condicional de documentos ===
-        // Se normaliza igual que el bloque `campos` de abajo (.trim().toUpperCase())
+        // Se normaliza igual que el bloque `campos` de arriba (.trim().toUpperCase())
         // para que coincida con la columna `codigo` de programas (mayúsculas).
         const cursoNormalizado =
             typeof body.curso === "string"
@@ -129,10 +405,10 @@ export async function POST(request: NextRequest) {
         // referencia es la fecha actual):
         //   menor de 18 → acta + comprobante (sin INE)
         //   adulto      → INE frente y reverso + comprobante (acta opcional)
+        // fecha_nacimiento ya pasó validarDatosPersonales (YYYY-MM-DD y fecha
+        // real), así que calcularEdad nunca recibe basura ni devuelve NaN.
         const esMenor =
-            typeof body.fecha_nacimiento === "string" &&
-            body.fecha_nacimiento.trim() !== "" &&
-            calcularEdad(body.fecha_nacimiento.trim(), new Date()) < 18;
+            calcularEdad(registroData.fecha_nacimiento, new Date()) < 18;
 
         if (programa.requiere_documentos === true) {
             if (esMenor) {
@@ -196,82 +472,6 @@ export async function POST(request: NextRequest) {
                     { status: 400 },
                 );
             }
-        }
-
-        // Extraer datos del formulario
-        const registroData: Record<string, string> = {};
-        const campos = [
-            "nombre",
-            "apellido_paterno",
-            "apellido_materno",
-            "sexo",
-            "telefono_celular",
-            "correo_electronico",
-            "estado_civil",
-            "grado_estudios",
-            "fecha_nacimiento",
-            "pais_nacimiento",
-            "estado_nacimiento",
-            "municipio_nacimiento",
-            "lugar_nacimiento",
-            "calle_domicilio",
-            "numero_exterior",
-            "numero_interior",
-            "colonia_domicilio",
-            "codigo_postal",
-            "pais_domicilio",
-            "estado_domicilio",
-            "municipio_domicilio",
-            "familiar_nombre",
-            "familiar_parentesco",
-            "familiar_telefono",
-            "familiar_calle",
-            "familiar_numero",
-            "familiar_colonia",
-            "familiar_codigo_postal",
-            "familiar_pais",
-            "familiar_estado",
-            "familiar_municipio",
-            "emergencia_nombre",
-            "emergencia_parentesco",
-            "emergencia_telefono",
-            "curso",
-        ];
-
-        for (const campo of campos) {
-            const valor = body[campo];
-            if (valor !== undefined && typeof valor === "string") {
-                registroData[campo] = valor.trim();
-            }
-        }
-
-        // Convertir a mayúsculas los campos de texto (excepto correo)
-        const camposTexto = campos.filter(
-            (c) =>
-                ![
-                    "correo_electronico",
-                    "telefono_celular",
-                    "fecha_nacimiento",
-                    "numero_exterior",
-                    "numero_interior",
-                    "codigo_postal",
-                    "familiar_telefono",
-                    "familiar_numero",
-                    "familiar_codigo_postal",
-                    "emergencia_telefono",
-                ].includes(c),
-        );
-
-        for (const campo of camposTexto) {
-            if (registroData[campo]) {
-                registroData[campo] = registroData[campo].toUpperCase();
-            }
-        }
-
-        // Correo siempre en minúsculas
-        if (registroData.correo_electronico) {
-            registroData.correo_electronico =
-                registroData.correo_electronico.toLowerCase();
         }
 
         // Construir payload del INSERT con rutas y upload_session_id

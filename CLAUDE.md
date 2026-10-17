@@ -65,6 +65,7 @@ NO eliminar ni debilitar. Son la última línea de defensa contra registros inco
 - `uploadId` debe ser UUID válido
 - `rutas` debe ser objeto con `ruta_ine` y `ruta_comprobante_domicilio` no vacíos
 - Cada ruta debe cumplir `startsWith(\`temp/${uploadId}/\`)` Y `!includes('..')`
+- **Datos personales (Octubre 2026):** `validarDatosPersonales` replica las reglas de `validateStep` del formulario (presencia tras trim, teléfonos de 10 dígitos, CP de 5, misma regex de correo, fecha `YYYY-MM-DD` real y condicionales por el **valor** del país: MEXICO exige estado y municipio, ESTADOS UNIDOS exige estado de `ESTADOS_USA`, cualquier otro texto exige solo el campo libre). Corre después del trim de los 35 campos y antes de las mayúsculas, de la consulta a `programas` y del cálculo de edad. Responde 400 con un solo `error` en español que une los campos con la etiqueta de su paso. No valida `estado_civil`, `grado_estudios` ni parentescos contra listas ("otro" viaja como texto libre) ni pone topes de longitud. Si el cliente cambia una regla, cambiarla aquí también.
 
 ---
 
