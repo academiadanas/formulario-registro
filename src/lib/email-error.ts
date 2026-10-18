@@ -8,7 +8,8 @@
 export type EmailErrorTipo = "destinatario" | "temporal" | "otro";
 
 // Errores cuya causa está en los datos del destinatario (dirección rechazada
-// por Resend). Reintentar con la misma dirección no ayuda.
+// por Resend). Reintentar con la misma dirección no ayuda: la pantalla de
+// gracias oculta el botón de reintento en este caso.
 const ERRORES_DESTINATARIO: ReadonlySet<string> = new Set([
     "validation_error",
     "invalid_parameter",
@@ -24,7 +25,7 @@ const ERRORES_TEMPORALES: ReadonlySet<string> = new Set([
 
 export const MENSAJES_EMAIL_ERROR: Readonly<Record<EmailErrorTipo, string>> = {
     destinatario:
-        "No pudimos enviar el correo. Revisa que tu dirección esté bien escrita.",
+        "No pudimos enviar el correo: la dirección no es válida. Tu registro sí quedó guardado; comunícate con la academia para corregirla.",
     temporal:
         "No pudimos enviar el correo en este momento. Inténtalo más tarde.",
     otro: "No pudimos enviar el correo de confirmación. Tu registro sí quedó guardado.",

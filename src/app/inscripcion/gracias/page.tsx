@@ -129,7 +129,8 @@ function GraciasContent() {
                   <p className="text-orange-700 text-sm">
                     {result.emailError || 'El correo no pudo ser enviado.'}
                   </p>
-                  {registroId && (
+                  {/* Con dirección inválida, reintentar fallaría igual: sin botón. */}
+                  {registroId && result.emailErrorTipo !== 'destinatario' && (
                     <button
                       type="button"
                       onClick={reintentarEnvio}
