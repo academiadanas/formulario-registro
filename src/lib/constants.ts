@@ -60,8 +60,8 @@ export const DOCUMENTOS_LEGALES = {
     },
     avisoPrivacidad: {
         slug: "aviso-privacidad",
-        lastUpdated: "2026-09-22",
-        sha256: "354380fe05c5477eb7c1afc5e37ab43a3270f69c1fcd113341718a55d4c095c3",
+        lastUpdated: "2026-11-16",
+        sha256: "aae184874d5d2f873be6ab556e4f909e83202cae6d7373ab543437ca59dd85f7",
     },
 } as const;
 
