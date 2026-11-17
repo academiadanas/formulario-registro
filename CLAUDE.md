@@ -27,11 +27,12 @@ Si una tarea requiere modificar el panel administrativo, ESTÁ EN OTRO PROYECTO.
 - **Rutas que lo usan:**
   - `src/app/api/registro/route.ts` — creación atómica del registro de inscripción (incluye uploads ya validados)
   - `src/app/api/registro/upload-url/route.ts` — emisión de signed upload URLs para archivos
-  - `src/app/api/registro/buscar/route.ts` — búsqueda de registro
   - `src/app/api/catalogos/route.ts` — catálogos de estados/municipios
   - `src/app/api/pdf/[id]/route.ts` — envío del correo de confirmación de inscripción
 
 No existen rutas API de admin en este proyecto: el panel administrativo y sus endpoints (`/admin/...`, `/api/admin/...`, `/api/programas/admin`) se eliminaron en Julio 2026 porque el panel vive en el proyecto escolar.
+
+`/api/registro/buscar` se eliminó en Noviembre 2026: no tenía llamadores desde que se quitó la página `/buscar` (commit `71e2f05`, Marzo 2026), la función `buscar_registro` que invocaba ya no existe en la BD, y devolvía nombre completo y curso a quien conociera correo y teléfono.
 
 ---
 
