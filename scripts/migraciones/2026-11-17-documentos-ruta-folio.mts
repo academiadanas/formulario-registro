@@ -1,6 +1,14 @@
 /**
  * MIGRACIÓN DE UN SOLO USO — 17 de noviembre de 2026
  *
+ * ⚠ NO USAR COMO PLANTILLA. Este script es anterior a la regla "Base de
+ * datos: Claude Code no la modifica" de CLAUDE.md. Ya se ejecutó y no se
+ * vuelve a usar. Actualiza las columnas `ruta_*` de `registros` por su
+ * cuenta, cosa que la regla prohíbe: las migraciones nuevas pueden mover
+ * objetos en Storage, pero generan las actualizaciones de columnas como un
+ * archivo .sql para que Roberto lo revise y lo corra en el editor SQL de
+ * Supabase.
+ *
  * Problema: el bucket `documentos` es público y los archivos subidos antes del
  * 28-abr-2026 (y las re-subidas desde Control Escolar) viven en rutas derivadas
  * del folio consecutivo: `{folio}/{tipo}_{folio}.{ext}` o
