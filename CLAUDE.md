@@ -172,6 +172,11 @@ Considerar restringir la SELECT policy del bucket `documentos` para que clientes
 
 ## Historial de fixes importantes
 
+### Noviembre 2026 — Rutas adivinables en Storage
+- **Problema:** el bucket `documentos` es público. Los archivos subidos antes del fix de Abril 2026 (y las re-subidas desde Control Escolar) vivían en `{folio}/...`, recorribles por folio consecutivo.
+- **Fix:** migración de un solo uso `scripts/migraciones/2026-11-17-documentos-ruta-folio.mts` movió los 20 objetos fuera de `temp/` a `registros/{uuid}/{tipo}.{ext}` y actualizó su columna `ruta_*` (conservando forma relativa o URL; las URLs del proyecto Supabase anterior se reescribieron al actual).
+- **Prefijo `registros/`:** NO usar `temp/` para archivos sin `upload_session_id` correlacionado: la herramienta de huérfanos de Control Escolar recorre `temp/{uuid}/` y propondría borrarlos. El plan y la bitácora de la migración no se versionan (contienen las rutas nuevas).
+
 ### Abril 2026 — Fix arquitectónico de atomicidad
 - **Problema:** el flujo era 3 llamadas HTTP no atómicas (INSERT con rutas NULL → uploads → UPDATE rutas). Si fallaba en medio, quedaba registro huérfano (caso real: folio 84 duplicado).
 - **Fix:** invertir el orden. UUID en cliente → uploads a `temp/{uuid}/` → UN solo INSERT atómico con todo.
