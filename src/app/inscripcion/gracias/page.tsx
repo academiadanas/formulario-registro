@@ -4,60 +4,43 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { WizardHeader } from '@/components/ui/WizardHeader';
+import { ACADEMIA_INFO } from '@/lib/constants';
+import {
+  leerConfirmacion,
+  type ConfirmacionInscripcion,
+} from '@/lib/confirmacion-inscripcion';
 
 interface PDFResult {
   success: boolean;
   emailSent: boolean;
   emailError?: string;
   emailErrorTipo?: 'destinatario' | 'temporal' | 'otro' | null;
-  correoEnviado?: string;
   error?: string;
 }
+
+// 'sin-sesion': la pestaña no tiene los datos que dejó el formulario (se abrió
+// el enlace en otra pestaña o dispositivo, o el navegador rechazó
+// sessionStorage). Sin el uploadId no se puede pedir el envío del correo.
+type Estado = 'loading' | 'success' | 'error' | 'sin-sesion';
 
 function GraciasContent() {
   const searchParams = useSearchParams();
   const registroId = searchParams.get('id');
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [status, setStatus] = useState<Estado>('loading');
   const [result, setResult] = useState<PDFResult | null>(null);
+  const [confirmacion, setConfirmacion] = useState<ConfirmacionInscripcion | null>(null);
 
   // Evita el fetch duplicado del doble-montaje de Strict Mode en desarrollo
   // (el servidor ya es idempotente vía contrato_enviado_at de todos modos).
   const enviadoRef = useRef(false);
 
-  useEffect(() => {
-    if (!registroId) {
-      setStatus('error');
-      return;
-    }
-
-    if (enviadoRef.current) return;
-    enviadoRef.current = true;
-
-    // Enviar correo automáticamente
-    fetch(`/api/pdf/${registroId}`, {
+  // El uploadId viaja en el cuerpo, nunca en la URL (es la carpeta de los
+  // documentos de la alumna en un bucket público).
+  function enviarCorreo(datos: ConfirmacionInscripcion) {
+    fetch(`/api/pdf/${datos.registroId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'send' }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setResult(data);
-        setStatus(data.success ? 'success' : 'error');
-      })
-      .catch(() => {
-        setStatus('error');
-      });
-  }, [registroId]);
-
-  // Reintento manual del envío. Es seguro: el endpoint es idempotente vía
-  // contrato_enviado_at y solo llama a Resend si el correo no se confirmó.
-  function reintentarEnvio() {
-    if (!registroId) return;
-    setStatus('loading');
-    fetch(`/api/pdf/${registroId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'send' }),
+      body: JSON.stringify({ uploadSessionId: datos.uploadId }),
     })
       .then((res) => res.json())
       .then((data) => {
@@ -66,6 +49,50 @@ function GraciasContent() {
       })
       .catch(() => setStatus('error'));
   }
+
+  useEffect(() => {
+    const folio = Number(registroId);
+    if (!registroId || !Number.isInteger(folio) || folio <= 0) {
+      setStatus('error');
+      return;
+    }
+
+    if (enviadoRef.current) return;
+    enviadoRef.current = true;
+
+    const datos = leerConfirmacion(folio);
+    if (!datos) {
+      setStatus('sin-sesion');
+      return;
+    }
+
+    setConfirmacion(datos);
+    enviarCorreo(datos);
+  }, [registroId]);
+
+  // Reintento manual del envío. Es seguro: el endpoint es idempotente vía
+  // contrato_enviado_at y solo llama a Resend si el correo no se confirmó.
+  function reintentarEnvio() {
+    if (!confirmacion) return;
+    setStatus('loading');
+    enviarCorreo(confirmacion);
+  }
+
+  const enlaceContrato = (
+    <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-5 mt-4">
+      <p className="text-text-secondary text-sm mb-3">
+        Te invitamos a leer el <strong>Contrato de Prestación de Servicios Educativos</strong> antes de tu primer día de clases:
+      </p>
+      <a
+        href="https://www.academiadanas.com/contrato-servicios-educativos"
+        target="_blank"
+        className="inline-flex items-center justify-center gap-2 bg-secondary
+          text-white py-3 px-6 rounded-xl font-semibold hover:bg-secondary-dark transition-colors"
+      >
+        Ver Contrato de Servicios Educativos
+      </a>
+    </div>
+  );
 
   return (
     <main className="min-h-screen bg-cream flex items-center justify-center p-5">
@@ -114,7 +141,7 @@ function GraciasContent() {
                 <div className="bg-green-50 border-2 border-green-200 rounded-xl p-5">
                   <p className="text-green-800 font-semibold mb-2">¡Correo enviado!</p>
                   <p className="text-green-700 text-sm">
-                    Se envió a: <strong>{result.correoEnviado}</strong>
+                    Se envió a: <strong>{confirmacion?.correo}</strong>
                   </p>
                   <p className="text-green-600 text-xs mt-1">
                     Revisa tu bandeja de entrada o carpeta de spam.
@@ -130,7 +157,7 @@ function GraciasContent() {
                     {result.emailError || 'El correo no pudo ser enviado.'}
                   </p>
                   {/* Con dirección inválida, reintentar fallaría igual: sin botón. */}
-                  {registroId && result.emailErrorTipo !== 'destinatario' && (
+                  {confirmacion && result.emailErrorTipo !== 'destinatario' && (
                     <button
                       type="button"
                       onClick={reintentarEnvio}
@@ -144,19 +171,22 @@ function GraciasContent() {
               )}
 
               {/* Enlace al contrato */}
-              <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-5 mt-4">
-                <p className="text-text-secondary text-sm mb-3">
-                  Te invitamos a leer el <strong>Contrato de Prestación de Servicios Educativos</strong> antes de tu primer día de clases:
+              {enlaceContrato}
+            </div>
+          )}
+
+          {status === 'sin-sesion' && (
+            <div className="animate-[fadeIn_0.4s_ease] space-y-4">
+              <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-5">
+                <p className="text-orange-800 font-semibold mb-2">Registro guardado</p>
+                <p className="text-orange-700 text-sm">
+                  El correo de confirmación se envía al terminar la inscripción, desde la pestaña donde te registraste.
+                  Si no lo recibiste (revisa también tu carpeta de spam), escríbenos a{' '}
+                  <strong>{ACADEMIA_INFO.correo}</strong> o llámanos al{' '}
+                  <strong className="whitespace-nowrap">{ACADEMIA_INFO.telefono}</strong> indicando tu número de folio.
                 </p>
-                <a
-                  href="https://www.academiadanas.com/contrato-servicios-educativos"
-                  target="_blank"
-                  className="inline-flex items-center justify-center gap-2 bg-secondary
-                    text-white py-3 px-6 rounded-xl font-semibold hover:bg-secondary-dark transition-colors"
-                >
-                  Ver Contrato de Servicios Educativos
-                </a>
               </div>
+              {enlaceContrato}
             </div>
           )}
 
@@ -166,7 +196,7 @@ function GraciasContent() {
               <p className="text-red-700 text-sm">
                 {result?.error || 'No se pudo enviar el correo de confirmación.'}
               </p>
-              {registroId && (
+              {confirmacion && (
                 <button
                   type="button"
                   onClick={reintentarEnvio}

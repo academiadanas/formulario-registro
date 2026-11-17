@@ -28,7 +28,7 @@ Si una tarea requiere modificar el panel administrativo, ESTÁ EN OTRO PROYECTO.
   - `src/app/api/registro/route.ts` — creación atómica del registro de inscripción (incluye uploads ya validados)
   - `src/app/api/registro/upload-url/route.ts` — emisión de signed upload URLs para archivos
   - `src/app/api/catalogos/route.ts` — catálogos de estados/municipios
-  - `src/app/api/pdf/[id]/route.ts` — envío del correo de confirmación de inscripción
+  - `src/app/api/pdf/[id]/route.ts` — envío del correo de confirmación de inscripción. **Exige `uploadSessionId` en el cuerpo** y solo responde si coincide con `registros.upload_session_id` del folio (si no, el mismo 404 que un folio inexistente). No devuelve la dirección de correo. La pantalla de gracias recibe `{ registroId, uploadId, correo }` del formulario vía `src/lib/confirmacion-inscripcion.ts` (memoria + sessionStorage), **nunca por la URL**: el uploadId es la carpeta de los documentos en un bucket público. Si la pestaña no tiene esos datos, la pantalla muestra el folio y un contacto, sin envío. Registros sin `upload_session_id` (históricos) no pueden usar esta ruta, a propósito (Noviembre 2026)
 
 No existen rutas API de admin en este proyecto: el panel administrativo y sus endpoints (`/admin/...`, `/api/admin/...`, `/api/programas/admin`) se eliminaron en Julio 2026 porque el panel vive en el proyecto escolar.
 

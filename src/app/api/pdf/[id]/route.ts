@@ -14,27 +14,57 @@ const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Envía el correo de confirmación de inscripción. Solo responde si el folio
+// Y el upload_session_id del registro coinciden: el folio es consecutivo,
+// pero el uploadId (UUID generado en el navegador de la alumna) solo lo tiene
+// la pestaña donde se inscribió. Sin esa llave, cualquiera podía recorrer
+// folios para obtener correos, mandar correos a alumnas antiguas y escribir
+// contrato_enviado_at con una fecha falsa. Registros sin upload_session_id
+// (históricos) quedan fuera a propósito.
+// La respuesta NO incluye la dirección de correo: la pantalla de gracias la
+// muestra desde lo que la alumna escribió (src/lib/confirmacion-inscripcion.ts).
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const registroId = parseInt(id);
+    const registroId = Number(id);
 
-    if (isNaN(registroId)) {
-      return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+    if (!Number.isInteger(registroId) || registroId <= 0) {
+      return NextResponse.json({ error: 'Solicitud inválida' }, { status: 400 });
     }
 
-    // Obtener registro
+    let uploadSessionId: unknown;
+    try {
+      ({ uploadSessionId } = await request.json());
+    } catch {
+      return NextResponse.json({ error: 'Solicitud inválida' }, { status: 400 });
+    }
+
+    if (typeof uploadSessionId !== 'string' || !UUID_REGEX.test(uploadSessionId)) {
+      return NextResponse.json({ error: 'Solicitud inválida' }, { status: 400 });
+    }
+
+    // Folio y llave en la misma consulta: si no coinciden, la respuesta es
+    // idéntica a la de un folio inexistente.
     const supabase = createPublicSupabaseClient();
     const { data: registro, error } = await supabase
       .from('registros')
       .select('*')
       .eq('id', registroId)
-      .single();
+      .eq('upload_session_id', uploadSessionId)
+      .maybeSingle();
 
-    if (error || !registro) {
+    if (error) {
+      console.error('Error consultando registro para correo:', error);
+      return NextResponse.json({ error: 'Error al enviar correo' }, { status: 500 });
+    }
+
+    if (!registro) {
       return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 });
     }
 
@@ -47,7 +77,6 @@ export async function POST(
         emailSent: true,
         emailError: '',
         emailErrorTipo: null,
-        correoEnviado: registro.correo_electronico,
       });
     }
 
@@ -99,12 +128,11 @@ export async function POST(
       emailSent,
       emailError,
       emailErrorTipo,
-      correoEnviado: registro.correo_electronico,
     });
   } catch (error) {
     console.error('Error en API correo:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Error al enviar correo' },
+      { error: 'Error al enviar correo' },
       { status: 500 }
     );
   }

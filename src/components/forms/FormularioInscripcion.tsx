@@ -8,6 +8,7 @@ import { WizardHeader } from '@/components/ui/WizardHeader';
 import { StepNavigation } from '@/components/ui/StepNavigation';
 import { ESTADOS_USA, FILE_CONFIG, ACADEMIA_INFO } from '@/lib/constants';
 import { uploadFile, UploadError } from '@/lib/upload-file';
+import { guardarConfirmacion } from '@/lib/confirmacion-inscripcion';
 import { CatalogosAgrupados, CursoOption } from '@/types';
 
 const TOTAL_STEPS = 6;
@@ -734,6 +735,21 @@ export default function FormularioInscripcion() {
       }
 
       const registroId: number = result.registroId;
+
+      // Entrega a /inscripcion/gracias lo que necesita para el correo de
+      // confirmación (uploadId como llave y el correo para mostrarlo), fuera
+      // de la URL. Ocurre DESPUÉS del INSERT: no altera el flujo atómico. Si
+      // el navegador lo rechaza, la alumna se queda sin correo automático,
+      // nunca sin pantalla de gracias.
+      try {
+        guardarConfirmacion({
+          registroId,
+          uploadId: uploadIdRef.current,
+          correo: correo.trim(),
+        });
+      } catch (err) {
+        console.error('No se pudo guardar la confirmación:', err);
+      }
 
       router.push(`/inscripcion/gracias?id=${registroId}`);
     } catch (error) {
