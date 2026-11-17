@@ -171,6 +171,29 @@ Considerar restringir la SELECT policy del bucket `documentos` para que clientes
 
 ---
 
+## Base de datos: Claude Code no la modifica
+
+Distinción importante: esto NO es sobre el código de la aplicación, que
+obviamente escribe en la base al atender a las usuarias. Es sobre las
+acciones de Claude Code.
+
+Claude Code nunca ejecuta cambios de contenido o estructura en la base de
+datos de Supabase: ni INSERT, ni UPDATE, ni DELETE, ni DDL (CREATE / ALTER /
+DROP). Ni directamente, ni desde un script que él corra, ni como paso de una
+migración.
+
+Leer sí: consultas SELECT para auditar, verificar o entender el estado.
+
+Cuando haga falta un cambio, Claude Code entrega el SQL con una explicación
+de qué hace y qué toca, y Roberto lo ejecuta en el editor SQL de Supabase.
+Sin excepciones, por trivial o urgente que parezca.
+
+En migraciones que combinan archivos y base: el script puede copiar o mover
+objetos en Storage, pero las actualizaciones de columnas las GENERA como un
+archivo .sql para que Roberto las revise y las corra. No las ejecuta.
+
+---
+
 ## Historial de fixes importantes
 
 ### Noviembre 2026 — Rutas adivinables en Storage
