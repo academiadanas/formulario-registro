@@ -27,7 +27,7 @@ Si una tarea requiere modificar el panel administrativo, ESTÁ EN OTRO PROYECTO.
 - **Rutas que lo usan:**
   - `src/app/api/registro/route.ts` — creación atómica del registro de inscripción (incluye uploads ya validados)
   - `src/app/api/registro/upload-url/route.ts` — emisión de signed upload URLs para archivos
-  - `src/app/api/catalogos/route.ts` — catálogos de estados/municipios
+  - `src/app/api/catalogos/route.ts` — catálogos de estados/municipios. Lee con `leerCatalogo` (`src/lib/catalogos.ts`), que pagina; ver sección "Catálogo de estados y municipios"
   - `src/app/api/pdf/[id]/route.ts` — envío del correo de confirmación de inscripción. **Exige `uploadSessionId` en el cuerpo** y solo responde si coincide con `registros.upload_session_id` del folio (si no, el mismo 404 que un folio inexistente). No devuelve la dirección de correo. La pantalla de gracias recibe `{ registroId, uploadId, correo }` del formulario vía `src/lib/confirmacion-inscripcion.ts` (memoria + sessionStorage), **nunca por la URL**: el uploadId es la carpeta de los documentos en un bucket público. Si la pestaña no tiene esos datos, la pantalla muestra el folio y un contacto, sin envío. Registros sin `upload_session_id` (históricos) no pueden usar esta ruta, a propósito (Noviembre 2026)
 
 No existen rutas API de admin en este proyecto: el panel administrativo y sus endpoints (`/admin/...`, `/api/admin/...`, `/api/programas/admin`) se eliminaron en Julio 2026 porque el panel vive en el proyecto escolar.
@@ -135,6 +135,16 @@ El sitio web (repo aparte) publica `https://academiadanas.com/legal/versiones.js
 Si el hash cambia pero la fecha no, el texto se editó en el sitio sin subir versión. El script explica las dos salidas: publicar versión nueva (cambio de fondo) o copiar solo el hash (corrección menor). Los registros históricos nunca se tocan: cada uno conserva la fecha de versión que aceptó.
 
 El script se ejecuta con Node directamente (type stripping, requiere Node >= 22.18; `engines` en package.json lo fija). `scripts/` está excluido de `tsconfig.json` para que el type-check de Next no procese el import con extensión `.ts`.
+
+---
+
+## Catálogo de estados y municipios (Noviembre 2026)
+
+La tabla `catalogos` (`id`, `estado`, `municipio`) tiene las 32 entidades y 2,476 municipios, cargados del catálogo de claves del INEGI (los `id` siguen el orden de clave; Oaxaca tiene 568 porque faltan los homónimos San Juan Mixtepec y San Pedro Mixtepec). Solo este proyecto la lee; Control Escolar y la papelería del IDEFT usan el texto ya guardado en `registros`.
+
+- **Paginación obligatoria:** Supabase corta cada respuesta en "Max rows" (1000), un límite único para las seis apps del proyecto. **No subirlo para arreglar una app.** Sin paginar, el formulario recibía 19 estados (hasta Nuevo León, y Nuevo León sin Monterrey). `leerCatalogo` avanza por las filas recibidas hasta el total que reporta Supabase (`count: 'exact'`), no hasta "recibir menos de lo pedido", que un límite menor a la página engañaría. Lanza si una página falla o si no cuadra el total: nunca devuelve un catálogo parcial.
+- **Prebuild:** `scripts/verificar-catalogo.mts` corre `leerCatalogo` contra la base y falla el build, en cualquier entorno, si no hay 32 entidades o alguna queda sin municipios. **Si no puede leer la base** (red, credenciales, error de Supabase, tras un reintento) **también falla**: un aviso que deja seguir el build no lo lee nadie. La única salida de emergencia es `CATALOGO_CHECK=off` (variable de entorno en Vercel, quitarla después): saltarse la verificación tiene que ser un acto explícito, no un aviso silencioso. La ruta debe seguir usando `leerCatalogo`; si no, el prebuild verifica una función que el formulario ya no usa.
+- **Si la lectura falla en producción:** la ruta responde 500 y el formulario muestra un aviso con "Volver a intentar" en lugar de los desplegables de estado y municipio (no "recarga la página": el formulario no guarda lo llenado).
 
 ---
 

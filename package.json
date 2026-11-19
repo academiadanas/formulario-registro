@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verificar-versiones-legales.mts",
+    "prebuild": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verificar-versiones-legales.mts && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env.local scripts/verificar-catalogo.mts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

@@ -332,6 +332,8 @@ export default function FormularioInscripcion() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState('Enviando registro...');
   const [catalogos, setCatalogos] = useState<CatalogosAgrupados>({});
+  const [catalogosError, setCatalogosError] = useState(false);
+  const [intentoCatalogos, setIntentoCatalogos] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Cursos cargados desde /api/programas.
@@ -411,12 +413,26 @@ export default function FormularioInscripcion() {
   const [emergenciaTelefono, setEmergenciaTelefono] = useState('');
 
   // ---- Cargar catálogos ----
+  // Sin catálogo no hay forma de elegir estado (obligatorio si el país es
+  // México). Si falla, se muestra un aviso con reintento en vez del
+  // desplegable; recargar la página borraría lo que la alumna ya llenó.
   useEffect(() => {
     fetch('/api/catalogos')
-      .then((res) => res.json())
-      .then((data) => setCatalogos(data))
-      .catch((err) => console.error('Error cargando catálogos:', err));
-  }, []);
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Respuesta no-ok: ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data: CatalogosAgrupados) => {
+        setCatalogos(data);
+        setCatalogosError(false);
+      })
+      .catch((err) => {
+        console.error('Error cargando catálogos:', err);
+        setCatalogosError(true);
+      });
+  }, [intentoCatalogos]);
 
   // ---- Cargar cursos desde /api/programas ----
   useEffect(() => {
@@ -628,6 +644,30 @@ export default function FormularioInscripcion() {
   }
 
   const CONTACTO_SI_PERSISTE = `Si vuelve a pasar, escríbenos por WhatsApp al ${ACADEMIA_INFO.telefono} o por correo a ${ACADEMIA_INFO.correo}.`;
+
+  // Ocupa el lugar de los desplegables de estado y municipio (nacimiento,
+  // domicilio y familiar) cuando /api/catalogos falla.
+  const avisoCatalogo = (
+    <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-r-xl mb-6">
+      <p className="text-red-800 text-sm">
+        ⚠️ <strong>No pudimos cargar la lista de estados y municipios.</strong><br />
+        <span className="text-sm">
+          Tus datos siguen aquí. Pulsa «Volver a intentar». {CONTACTO_SI_PERSISTE}
+        </span>
+      </p>
+      <button
+        type="button"
+        onClick={() => {
+          setCatalogosError(false);
+          setIntentoCatalogos((n) => n + 1);
+        }}
+        className="mt-3 px-4 py-2 rounded-xl font-medium border bg-surface border-border-warm
+          text-text-primary hover:border-primary-light transition-all duration-300"
+      >
+        Volver a intentar
+      </button>
+    </div>
+  );
 
   // ---- Enviar formulario ----
   async function handleSubmit(e: FormEvent) {
@@ -1127,7 +1167,7 @@ export default function FormularioInscripcion() {
             error={errors.paisNacimiento}
           />
 
-          {paisNacimiento === 'MEXICO' && (
+          {paisNacimiento === 'MEXICO' && (catalogosError ? avisoCatalogo : (
             <>
               <Select label="Estado de Nacimiento" options={estadosMexico} value={estadoNacimientoMx}
                 onChange={(e) => { setEstadoNacimientoMx(e.target.value); setMunicipioNacimiento(''); }}
@@ -1137,7 +1177,7 @@ export default function FormularioInscripcion() {
                 placeholder={estadoNacimientoMx ? '-- Selecciona un municipio --' : '-- Primero selecciona un estado --'}
                 required error={errors.municipioNacimiento} />
             </>
-          )}
+          ))}
 
           {paisNacimiento === 'ESTADOS UNIDOS' && (
             <Select label="Estado de Nacimiento" options={ESTADOS_USA} value={estadoNacimientoUsa}
@@ -1184,7 +1224,7 @@ export default function FormularioInscripcion() {
             }}
             placeholder="Selecciona…" required error={errors.paisDom} />
 
-          {paisDomicilio === 'MEXICO' && (
+          {paisDomicilio === 'MEXICO' && (catalogosError ? avisoCatalogo : (
             <>
               <Select label="Estado" options={estadosMexico} value={estadoDomicilioMx}
                 onChange={(e) => { setEstadoDomicilioMx(e.target.value); setMunicipioDomicilio(''); }}
@@ -1194,7 +1234,7 @@ export default function FormularioInscripcion() {
                 placeholder={estadoDomicilioMx ? 'Selecciona…' : 'Primero selecciona un estado'}
                 required error={errors.municipioDom} />
             </>
-          )}
+          ))}
 
           {paisDomicilio === 'ESTADOS UNIDOS' && (
             <Select label="Estado" options={ESTADOS_USA} value={estadoDomicilioUsa}
@@ -1270,7 +1310,7 @@ export default function FormularioInscripcion() {
             }}
             placeholder="Selecciona…" required error={errors.famPais} />
 
-          {familiarPais === 'MEXICO' && (
+          {familiarPais === 'MEXICO' && (catalogosError ? avisoCatalogo : (
             <>
               <Select label="Estado" options={estadosMexico} value={familiarEstadoMx}
                 onChange={(e) => { setFamiliarEstadoMx(e.target.value); setFamiliarMunicipio(''); }}
@@ -1280,7 +1320,7 @@ export default function FormularioInscripcion() {
                 placeholder={familiarEstadoMx ? 'Selecciona…' : 'Primero selecciona un estado'}
                 required error={errors.famMunicipio} />
             </>
-          )}
+          ))}
 
           {familiarPais === 'ESTADOS UNIDOS' && (
             <Select label="Estado" options={ESTADOS_USA} value={familiarEstadoUsa}
