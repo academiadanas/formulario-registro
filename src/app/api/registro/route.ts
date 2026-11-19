@@ -5,6 +5,20 @@ import {
     ESTADOS_USA,
     VERSIONES_DOCUMENTOS,
 } from "@/lib/constants";
+import {
+    COLUMNAS_DOCUMENTO,
+    mensajeArchivoInvalido,
+    promoverDocumentos,
+    rutaValida,
+    verificarArchivosSubidos,
+    type RutasDocumento,
+} from "@/lib/documentos-registro";
+
+// La promoción de documentos corre dentro de esta petición (con su propio
+// tope de 20 s). Se fija el máximo explícito para no depender de la
+// configuración del proyecto en Vercel: si la función se cortara entre el
+// INSERT y la respuesta, la alumna vería un error con su registro ya creado.
+export const maxDuration = 60;
 
 const UUID_REGEX =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -29,15 +43,6 @@ function calcularEdad(fechaNacimiento: string, referencia: Date): number {
         edad--;
     }
     return edad;
-}
-
-function rutaValida(ruta: unknown, uploadId: string): ruta is string {
-    return (
-        typeof ruta === "string" &&
-        ruta.length > 0 &&
-        ruta.startsWith(`temp/${uploadId}/`) &&
-        !ruta.includes("..")
-    );
 }
 
 // === Validación de datos personales ===
@@ -412,88 +417,91 @@ export async function POST(request: NextRequest) {
 
         if (programa.requiere_documentos === true) {
             if (esMenor) {
-                if (!rutaValida(rutaActa, uploadId)) {
+                if (!rutaValida(rutaActa, uploadId, "ruta_acta_nacimiento")) {
                     return NextResponse.json(
-                        {
-                            error:
-                                "La ruta del acta de nacimiento es obligatoria o no es válida",
-                        },
+                        { error: mensajeArchivoInvalido("ruta_acta_nacimiento") },
                         { status: 400 },
                     );
                 }
 
-                if (!rutaValida(rutaComprobante, uploadId)) {
+                if (!rutaValida(rutaComprobante, uploadId, "ruta_comprobante_domicilio")) {
                     return NextResponse.json(
-                        {
-                            error:
-                                "La ruta del comprobante de domicilio es obligatoria o no es válida",
-                        },
+                        { error: mensajeArchivoInvalido("ruta_comprobante_domicilio") },
                         { status: 400 },
                     );
                 }
             } else {
-                if (!rutaValida(rutaIneFrente, uploadId)) {
+                if (!rutaValida(rutaIneFrente, uploadId, "ruta_ine_frente")) {
                     return NextResponse.json(
-                        {
-                            error:
-                                "La ruta del frente de la INE es obligatoria o no es válida",
-                        },
+                        { error: mensajeArchivoInvalido("ruta_ine_frente") },
                         { status: 400 },
                     );
                 }
 
-                if (!rutaValida(rutaIneReverso, uploadId)) {
+                if (!rutaValida(rutaIneReverso, uploadId, "ruta_ine_reverso")) {
                     return NextResponse.json(
-                        {
-                            error:
-                                "La ruta del reverso de la INE es obligatoria o no es válida",
-                        },
+                        { error: mensajeArchivoInvalido("ruta_ine_reverso") },
                         { status: 400 },
                     );
                 }
 
-                if (!rutaValida(rutaComprobante, uploadId)) {
+                if (!rutaValida(rutaComprobante, uploadId, "ruta_comprobante_domicilio")) {
                     return NextResponse.json(
-                        {
-                            error:
-                                "La ruta del comprobante de domicilio es obligatoria o no es válida",
-                        },
+                        { error: mensajeArchivoInvalido("ruta_comprobante_domicilio") },
                         { status: 400 },
                     );
                 }
             }
         }
 
-        // El acta de nacimiento siempre es opcional: solo se valida si viene.
-        if (rutaActa !== undefined && rutaActa !== null) {
-            if (!rutaValida(rutaActa, uploadId)) {
+        // Toda ruta que venga, obligatoria u opcional, debe ser exactamente
+        // temp/{uploadId}/{tipo}.{ext} de ESTA petición y de su columna. Antes
+        // solo el acta se rechazaba; las demás se descartaban en silencio.
+        const rutasEnviadas: Record<string, unknown> = {
+            ruta_ine_frente: rutaIneFrente,
+            ruta_ine_reverso: rutaIneReverso,
+            ruta_acta_nacimiento: rutaActa,
+            ruta_comprobante_domicilio: rutaComprobante,
+        };
+        const rutasDocumento: RutasDocumento = {};
+        for (const columna of COLUMNAS_DOCUMENTO) {
+            const valor = rutasEnviadas[columna];
+            if (valor === undefined || valor === null) continue;
+            if (!rutaValida(valor, uploadId, columna)) {
                 return NextResponse.json(
-                    { error: "La ruta del acta de nacimiento no es válida" },
+                    { error: mensajeArchivoInvalido(columna) },
                     { status: 400 },
                 );
             }
+            rutasDocumento[columna] = valor;
+        }
+
+        // Los archivos deben existir en Storage y no estar vacíos. Evita que
+        // un registro nazca apuntando a archivos que no están (p. ej. ya
+        // promovidos por un envío anterior con el mismo uploadId).
+        const verificacion = await verificarArchivosSubidos(uploadId, rutasDocumento);
+        if (!verificacion.ok) {
+            return NextResponse.json(
+                { error: verificacion.error },
+                { status: verificacion.status },
+            );
         }
 
         // Construir payload del INSERT con rutas y upload_session_id
-        // Rutas null-safe: para cursos sin documentos llegan vacías y se insertan
-        // como null (igual que el acta). Para cursos que sí requieren, ya pasaron
-        // rutaValida arriba, así que el valor es el path válido.
+        // Rutas null-safe: las que no vinieron se insertan como null. Las que
+        // vinieron ya pasaron rutaValida y verificarArchivosSubidos arriba.
+        // Después del INSERT, promoverDocumentos las mueve a registros/.
         // Aceptación de documentos: garantizada por el guard de arriba. Las
         // versiones (fecha) y los hashes sha256 del texto de cada documento se
         // estampan desde la constante server-side (nunca del cliente).
         // aceptacion_documentos_at lo llena DEFAULT now() en la BD.
         const insertPayload: Record<string, string | boolean | null> = {
             ...registroData,
-            ruta_ine_frente: rutaValida(rutaIneFrente, uploadId)
-                ? rutaIneFrente
-                : null,
-            ruta_ine_reverso: rutaValida(rutaIneReverso, uploadId)
-                ? rutaIneReverso
-                : null,
-            ruta_acta_nacimiento: rutaValida(rutaActa, uploadId) ? rutaActa : null,
-            ruta_comprobante_domicilio: rutaValida(rutaComprobante, uploadId)
-                ? rutaComprobante
-                : null,
+            ruta_ine_frente: rutasDocumento.ruta_ine_frente ?? null,
+            ruta_ine_reverso: rutasDocumento.ruta_ine_reverso ?? null,
+            ruta_acta_nacimiento: rutasDocumento.ruta_acta_nacimiento ?? null,
+            ruta_comprobante_domicilio:
+                rutasDocumento.ruta_comprobante_domicilio ?? null,
             upload_session_id: uploadId,
             aceptacion_documentos: true,
             version_contrato: VERSIONES_DOCUMENTOS.contrato,
@@ -603,6 +611,20 @@ export async function POST(request: NextRequest) {
             console.error('Error en inserción/actualización automática a alumnas:', alumnaErr);
         }
         // === FIN INSERT/UPDATE ALUMNAS ===
+
+        // === PROMOCIÓN DE DOCUMENTOS temp/ → registros/ ===
+        // Síncrona a propósito: la falla queda en la misma traza y en una
+        // sola línea de log. promoverDocumentos nunca lanza y tiene su propio
+        // tope de tiempo; el .catch es una segunda red. Pase lo que pase, la
+        // alumna recibe la misma respuesta: su registro ya está guardado.
+        await promoverDocumentos(registroId, uploadId, rutasDocumento).catch(
+            (err) => {
+                console.error(
+                    `[promocion] FALLA registro ${registroId} (uploadSessionId ${uploadId}): excepción no controlada`,
+                    err,
+                );
+            },
+        );
 
         return NextResponse.json({
             success: true,

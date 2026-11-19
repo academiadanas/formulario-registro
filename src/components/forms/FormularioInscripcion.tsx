@@ -620,6 +620,15 @@ export default function FormularioInscripcion() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  // Error al enviar: el aviso vive arriba del formulario y la alumna está
+  // abajo, junto al botón. Sin subir la pantalla, en celular no lo ve.
+  function mostrarErrorEnvio(mensaje: string) {
+    setErrors({ submit: mensaje });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  const CONTACTO_SI_PERSISTE = `Si vuelve a pasar, escríbenos por WhatsApp al ${ACADEMIA_INFO.telefono} o por correo a ${ACADEMIA_INFO.correo}.`;
+
   // ---- Enviar formulario ----
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -709,7 +718,7 @@ export default function FormularioInscripcion() {
           if (comprobanteDomicilio) rutas.ruta_comprobante_domicilio = await uploadFile(comprobanteDomicilio, uploadIdRef.current, 'comprobante_domicilio');
         } catch (err) {
           const mensaje = construirMensajeErrorSubida(err);
-          setErrors({ submit: mensaje });
+          mostrarErrorEnvio(mensaje);
           setIsSubmitting(false);
           return;
         }
@@ -730,7 +739,10 @@ export default function FormularioInscripcion() {
 
       const result = await response.json();
       if (!result.success) {
-        setErrors({ submit: result.error || 'Error al enviar el registro' });
+        mostrarErrorEnvio(
+          result.error ||
+            `No pudimos enviar tu registro. Tus datos siguen aquí: pulsa «Enviar registro» de nuevo. ${CONTACTO_SI_PERSISTE}`
+        );
         return;
       }
 
@@ -754,7 +766,9 @@ export default function FormularioInscripcion() {
       router.push(`/inscripcion/gracias?id=${registroId}`);
     } catch (error) {
       console.error('Error:', error);
-      setErrors({ submit: 'Error de conexión. Por favor intenta de nuevo.' });
+      mostrarErrorEnvio(
+        `No pudimos conectar para enviar tu registro. Revisa tu conexión a internet; tus datos siguen aquí: pulsa «Enviar registro» de nuevo. ${CONTACTO_SI_PERSISTE}`
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -777,7 +791,7 @@ export default function FormularioInscripcion() {
 
       {/* Error general */}
       {errors.submit && (
-        <div className="mx-5 sm:mx-8 mt-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl text-red-700 text-center">
+        <div role="alert" className="mx-5 sm:mx-8 mt-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl text-red-700 text-center">
           {errors.submit}
         </div>
       )}
