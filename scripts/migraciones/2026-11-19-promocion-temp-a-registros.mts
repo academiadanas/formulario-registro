@@ -19,9 +19,11 @@
  *                originales ni toca la base. Si un objeto falla, sigue con
  *                los demás y sale con 1. Solo corre con el código
  *                commiteado; la bitácora registra el commit.
- *   3. sql       (pendiente) Genera el .sql con los UPDATE, SOLO para los
- *                objetos que la fase 2 verificó; avisa fuerte si son menos
- *                que los del plan. No lo ejecuta.
+ *   3. sql       Genera el .sql con los UPDATE, SOLO para los objetos que la
+ *                fase 2 verificó y cuya copia y columna siguen en
+ *                condiciones; avisa fuerte si son menos que los del plan.
+ *                Incluye previsualización, bloque todo-o-nada y
+ *                comprobación. No lo ejecuta.
  *   4. limpiar   (pendiente) Tras el SQL: verifica y borra los originales.
  *
  * El plan contiene las rutas nuevas (lo único que protege los archivos
@@ -35,6 +37,10 @@
  *   node --env-file=.env.local scripts/migraciones/2026-11-19-promocion-temp-a-registros.mts copiar \
  *     --plan "D:\respaldos-academia\promocion-AAAA-MM-DD\plan.json" \
  *     --bitacora "D:\respaldos-academia\promocion-AAAA-MM-DD\copia-1.jsonl"
+ *   node --env-file=.env.local scripts/migraciones/2026-11-19-promocion-temp-a-registros.mts sql \
+ *     --plan "D:\respaldos-academia\promocion-AAAA-MM-DD\plan.json" \
+ *     --bitacora "D:\respaldos-academia\promocion-AAAA-MM-DD\copia-1.jsonl" \
+ *     --sql "D:\respaldos-academia\promocion-AAAA-MM-DD\fase3-update.sql"
  *
  * Códigos de salida: 0 plan sin bloqueos · 1 plan con bloqueos (se guarda,
  * pero las fases siguientes se negarán a usarlo) · 2 error.
@@ -506,16 +512,237 @@ async function copiar(): Promise<number> {
   return 1;
 }
 
+// ---------------------------------------------------------------- fase 3
+
+interface LineaBitacora {
+  tipo: string;
+  fase?: string;
+  commit?: string;
+  proyecto?: string;
+  shaPlan?: string;
+  registroId?: number;
+  columna?: Columna;
+  origen?: string;
+  destino?: string;
+  estado?: EstadoItem;
+  motivo?: string;
+  sha256Copia?: string;
+  sha256Respaldo?: string;
+}
+
+const sqlTexto = (s: string) => `'${s.replace(/'/g, "''")}'`;
+
+/** CASE que devuelve el valor actual de la columna indicada en `c.columna`. */
+const casoColumna = (alias: string) =>
+  `case c.columna\n${COLUMNAS.map((col) => `           when '${col}' then ${alias}.${col}`).join('\n')}\n         end`;
+
+interface Excluido {
+  registroId: number;
+  columna: Columna;
+  motivo: string;
+}
+
+/**
+ * Genera el .sql con los UPDATE de ruta_* SOLO para los objetos que la fase
+ * 2 verificó y que siguen en condiciones (copia existente, columna sin
+ * cambios). No ejecuta nada en la base: el archivo lo revisa y lo corre
+ * Roberto. Si quedan menos que los del plan, lo avisa en pantalla, en el
+ * encabezado del .sql y en un raise notice.
+ */
+async function generarSql(): Promise<number> {
+  const rutaPlan = opcion('--plan');
+  const rutaBitacora = opcion('--bitacora');
+  const rutaSql = opcion('--sql');
+
+  console.log(`Proyecto Supabase: ${supabaseUrl() || '(sin NEXT_PUBLIC_SUPABASE_URL)'}`);
+  const commit = commitDelCodigo();
+  const { p, shaPlan } = leerPlanValidado(rutaPlan);
+  verificarUbicacionSegura(rutaSql);
+  if (existsSync(rutaSql)) throw new Error(`El .sql ya existe, no se sobrescribe: ${rutaSql}`);
+
+  // La bitácora debe ser de una corrida COMPLETA de la fase 2 sobre ESTE plan.
+  if (!existsSync(rutaBitacora)) throw new Error(`No existe la bitácora: ${rutaBitacora}`);
+  const lineas = readFileSync(rutaBitacora, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as LineaBitacora);
+  const inicio = lineas[0];
+  if (inicio?.tipo !== 'inicio' || inicio.fase !== 'copiar') throw new Error('La bitácora no empieza con el inicio de una fase 2.');
+  if (inicio.shaPlan !== shaPlan) throw new Error('La bitácora es de otro plan (o el plan cambió después de la fase 2).');
+  if (inicio.proyecto !== p.supabaseUrl) throw new Error('La bitácora es de otro proyecto.');
+  if (lineas.at(-1)?.tipo !== 'fin') throw new Error('La bitácora no tiene línea de cierre: la fase 2 no terminó.');
+  const shaBitacora = sha256Archivo(rutaBitacora);
+
+  const resultado = new Map<string, LineaBitacora>();
+  for (const l of lineas) if (l.tipo === 'item') resultado.set(`${l.registroId}|${l.columna}`, l);
+
+  const sb = cliente();
+  const total = p.registros.reduce((s, r) => s + r.items.length, 0);
+  const excluidos: Excluido[] = [];
+  const incluidos: { registroId: number; items: ItemPlan[] }[] = [];
+
+  for (const r of p.registros) {
+    // Valores actuales en la base (solo SELECT).
+    const fila = await conReintentos(`Leer registro ${r.registroId}`, async () => {
+      const { data, error } = await sb
+        .from('registros')
+        .select(r.items.map((i) => i.columna).join(','))
+        .eq('id', r.registroId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as unknown as Record<string, string | null> | null;
+    });
+
+    const items: ItemPlan[] = [];
+    for (const item of r.items) {
+      const l = resultado.get(`${r.registroId}|${item.columna}`);
+      const excluir = (motivo: string) => excluidos.push({ registroId: r.registroId, columna: item.columna, motivo });
+      if (!l) { excluir('no aparece en la bitácora'); continue; }
+      if (l.estado !== 'verificado') { excluir(`fase 2: ${l.estado}${l.motivo ? ` (${l.motivo})` : ''}`); continue; }
+      if (l.origen !== item.origen || l.destino !== item.destino) { excluir('la bitácora no coincide con el plan'); continue; }
+      if (!l.sha256Copia || l.sha256Copia !== item.sha256) { excluir('sha256 de la copia distinto del respaldo'); continue; }
+      if (!fila) { excluir('el registro ya no existe'); continue; }
+      if (fila[item.columna] !== item.valorActual) { excluir('la columna cambió desde el plan'); continue; }
+      if (!(await existe(sb, item.destino))) { excluir('la copia ya no existe en Storage'); continue; }
+      items.push(item);
+    }
+    if (items.length > 0) incluidos.push({ registroId: r.registroId, items });
+  }
+
+  const nIncluidos = incluidos.reduce((s, r) => s + r.items.length, 0);
+  const parcial = nIncluidos < total;
+  const ahora = new Date().toISOString();
+
+  // ---- Construcción del .sql
+  const valores = incluidos
+    .flatMap((r) => r.items.map((i) => `  (${r.registroId}, ${sqlTexto(i.columna)}, ${sqlTexto(i.valorActual)}, ${sqlTexto(i.valorNuevo)})`))
+    .join(',\n');
+  const cte = `with cambios(registro_id, columna, valor_actual_plan, valor_nuevo) as (values\n${valores}\n)`;
+
+  const aviso = parcial
+    ? [
+        '-- ############################################################################',
+        `-- ##  ATENCIÓN: MIGRACIÓN PARCIAL. Este archivo actualiza ${nIncluidos} de ${total} columnas.`,
+        `-- ##  ${total - nIncluidos} columna(s) se quedan en temp/ (la Pieza C las seguirá reportando):`,
+        ...excluidos
+          .sort((a, b) => a.registroId - b.registroId || a.columna.localeCompare(b.columna))
+          .map((x) => `-- ##    registro ${x.registroId} · ${x.columna} — ${x.motivo}`),
+        '-- ############################################################################',
+        '',
+      ]
+    : [];
+
+  const bloques = incluidos
+    .map((r) => {
+      const set = r.items.map((i) => `${i.columna} = ${sqlTexto(i.valorNuevo)}`).join(',\n         ');
+      const where = r.items.map((i) => `${i.columna} = ${sqlTexto(i.valorActual)}`).join('\n     and ');
+      return [
+        `  update registros`,
+        `     set ${set}`,
+        `   where id = ${r.registroId}`,
+        `     and ${where};`,
+        `  get diagnostics n = row_count;`,
+        `  if n <> 1 then raise exception 'Registro ${r.registroId}: se esperaba 1 fila y se actualizaron %. No se aplicó NADA.', n; end if;`,
+      ].join('\n');
+    })
+    .join('\n\n');
+
+  const sql = [
+    '-- ============================================================================',
+    '-- Promoción de documentos temp/ → registros/ — FASE 3: UPDATE de ruta_*',
+    `-- Generado: ${ahora}`,
+    `-- Proyecto: ${p.supabaseUrl}`,
+    `-- Código:   ${NOMBRE_SCRIPT}.mts @ ${commit}`,
+    `-- Plan:     ${rutaPlan} (sha256 ${shaPlan})`,
+    `-- Bitácora: ${rutaBitacora} (sha256 ${shaBitacora})`,
+    `-- Cambia:   ${nIncluidos} columna(s) en ${incluidos.length} registro(s) (el plan tenía ${total} en ${p.registros.length}).`,
+    '--',
+    '-- Lo genera el script; NO lo ejecuta. Contiene las rutas nuevas: no subirlo',
+    '-- a ningún repositorio.',
+    '-- ============================================================================',
+    '',
+    ...aviso,
+    '-- ----------------------------------------------------------------------------',
+    '-- 1) PREVISUALIZACIÓN — CORRE ESTO PRIMERO (solo lectura, no cambia nada).',
+    '--    Una fila por columna: valor actual en la base, valor nuevo, y si el',
+    `--    valor actual es el que vio el plan. "coincide_con_plan" debe ser true en`,
+    `--    las ${nIncluidos} filas; si alguna es false, el bloque 2 abortaría.`,
+    '-- ----------------------------------------------------------------------------',
+    cte,
+    'select c.registro_id,',
+    "       trim(concat_ws(' ', r.nombre, r.apellido_paterno, r.apellido_materno)) as alumna,",
+    '       c.columna,',
+    `       ${casoColumna('r')} as valor_actual_en_bd,`,
+    '       c.valor_nuevo,',
+    `       (${casoColumna('r')}) is not distinct from c.valor_actual_plan as coincide_con_plan`,
+    '  from cambios c',
+    '  left join registros r on r.id = c.registro_id',
+    ' order by c.registro_id, c.columna;',
+    '',
+    '-- ----------------------------------------------------------------------------',
+    '-- 2) APLICAR — todo o nada. Cada UPDATE exige que las columnas sigan con el',
+    '--    valor que vio el plan y que afecte exactamente 1 fila; si no, aborta y',
+    '--    no se aplica NINGÚN cambio.',
+    '-- ----------------------------------------------------------------------------',
+    'do $$',
+    'declare n int;',
+    'begin',
+    ...(parcial
+      ? [`  raise notice 'ATENCIÓN: MIGRACIÓN PARCIAL — se actualizan ${nIncluidos} de ${total} columnas; ${total - nIncluidos} se quedan en temp/.';`, '']
+      : []),
+    bloques,
+    '',
+    `  raise notice 'Listo: ${nIncluidos} columna(s) actualizadas en ${incluidos.length} registro(s).';`,
+    'end $$;',
+    '',
+    '-- ----------------------------------------------------------------------------',
+    '-- 3) COMPROBACIÓN — después de aplicar (solo lectura).',
+    `--    "aplicado" debe ser true en las ${nIncluidos} filas; la cuenta final debe dar ${nIncluidos}.`,
+    '-- ----------------------------------------------------------------------------',
+    cte,
+    'select c.registro_id, c.columna,',
+    `       (${casoColumna('r')}) = c.valor_nuevo as aplicado`,
+    '  from cambios c',
+    '  left join registros r on r.id = c.registro_id',
+    ' order by c.registro_id, c.columna;',
+    '',
+    cte,
+    `select count(*) filter (where (${casoColumna('r')}) = c.valor_nuevo) as aplicadas,`,
+    '       count(*) as esperadas',
+    '  from cambios c',
+    '  left join registros r on r.id = c.registro_id;',
+    '',
+  ].join('\n');
+
+  mkdirSync(dirname(rutaSql), { recursive: true });
+  writeFileSync(rutaSql, sql, { encoding: 'utf8', flag: 'wx' });
+
+  // ---- Reporte
+  console.log(`Commit: ${commit}`);
+  console.log('\n================ FASE 3: SQL GENERADO (no se ejecutó nada en la base) ================');
+  console.log(`Columnas en el SQL: ${nIncluidos} de ${total}, en ${incluidos.length} de ${p.registros.length} registros`);
+  console.log(`Excluidas: ${excluidos.length}`);
+  for (const x of excluidos) console.log(`  registro ${x.registroId} · ${x.columna} — ${x.motivo}`);
+  console.log(`\nArchivo: ${rutaSql}`);
+  console.log(`sha256:  ${sha256Archivo(rutaSql)}`);
+  if (parcial) {
+    console.log(`\n!!!!!!!! ATENCIÓN: SQL PARCIAL — ${total - nIncluidos} COLUMNA(S) SE QUEDAN EN temp/ !!!!!!!!`);
+    return 1;
+  }
+  console.log('\nRESULTADO: SQL completo, listo para revisar.');
+  return 0;
+}
+
 // ------------------------------------------------------------------ main
 
 async function main(): Promise<number> {
   const modo = process.argv[2];
   if (modo === 'plan') return plan();
   if (modo === 'copiar') return copiar();
-  if (modo === 'sql' || modo === 'limpiar') {
+  if (modo === 'sql') return generarSql();
+  if (modo === 'limpiar') {
     throw new Error(`La fase "${modo}" todavía no está implementada.`);
   }
-  throw new Error('Uso: plan --manifiesto <csv> --plan <json> | copiar --plan <json> --bitacora <jsonl>');
+  throw new Error(
+    'Uso: plan --manifiesto <csv> --plan <json> | copiar --plan <json> --bitacora <jsonl> | sql --plan <json> --bitacora <jsonl> --sql <archivo.sql>',
+  );
 }
 
 main().then(
