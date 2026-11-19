@@ -24,7 +24,12 @@
  *                condiciones; avisa fuerte si son menos que los del plan.
  *                Incluye previsualización, bloque todo-o-nada y
  *                comprobación. No lo ejecuta.
- *   4. limpiar   (pendiente) Tras el SQL: verifica y borra los originales.
+ *   4. limpiar   Tras el SQL. Primero --seco: comprueba cada original y lista
+ *                aptos y no aptos sin borrar. Luego --confirmo --revisado
+ *                <bitácora seca>: solo los aptos de esa pasada, comprobados
+ *                otra vez en el momento (copia descargada de nuevo contra el
+ *                respaldo, columna apuntando a la copia, original sin
+ *                ninguna referencia), se borran.
  *
  * El plan contiene las rutas nuevas (lo único que protege los archivos
  * mientras el bucket sea público): se rehúsa a escribirlo dentro de un repo
@@ -41,6 +46,13 @@
  *     --plan "D:\respaldos-academia\promocion-AAAA-MM-DD\plan.json" \
  *     --bitacora "D:\respaldos-academia\promocion-AAAA-MM-DD\copia-1.jsonl" \
  *     --sql "D:\respaldos-academia\promocion-AAAA-MM-DD\fase3-update.sql"
+ *   node --env-file=.env.local scripts/migraciones/2026-11-19-promocion-temp-a-registros.mts limpiar --seco \
+ *     --plan "D:\respaldos-academia\promocion-AAAA-MM-DD\plan.json" \
+ *     --bitacora "D:\respaldos-academia\promocion-AAAA-MM-DD\limpieza-seco.jsonl"
+ *   node --env-file=.env.local scripts/migraciones/2026-11-19-promocion-temp-a-registros.mts limpiar --confirmo \
+ *     --plan "D:\respaldos-academia\promocion-AAAA-MM-DD\plan.json" \
+ *     --revisado "D:\respaldos-academia\promocion-AAAA-MM-DD\limpieza-seco.jsonl" \
+ *     --bitacora "D:\respaldos-academia\promocion-AAAA-MM-DD\limpieza.jsonl"
  *
  * Códigos de salida: 0 plan sin bloqueos · 1 plan con bloqueos (se guarda,
  * pero las fases siguientes se negarán a usarlo) · 2 error.
@@ -524,7 +536,7 @@ interface LineaBitacora {
   columna?: Columna;
   origen?: string;
   destino?: string;
-  estado?: EstadoItem;
+  estado?: string;
   motivo?: string;
   sha256Copia?: string;
   sha256Respaldo?: string;
@@ -742,6 +754,233 @@ async function generarSql(): Promise<number> {
   return 0;
 }
 
+// ---------------------------------------------------------------- fase 4
+
+type EstadoLimpieza = 'apto' | 'no apto' | 'sin original' | 'borrado' | 'fallo al borrar';
+
+interface ResultadoLimpieza {
+  registroId: number;
+  columna: Columna;
+  estado: EstadoLimpieza;
+  motivo: string;
+}
+
+/**
+ * Borra los originales de temp/ ya reemplazados. Dos modos, en este orden:
+ *
+ *   --seco                       Hace TODAS las comprobaciones y escribe la
+ *                                lista de aptos y no aptos. No borra nada.
+ *   --confirmo --revisado <seco> Borrado real. Solo considera los objetos
+ *                                que la pasada en seco indicada marcó como
+ *                                aptos, y los vuelve a comprobar en el
+ *                                momento de borrar.
+ *
+ * Comprobaciones por original, justo antes de borrarlo:
+ *   1. La copia: se DESCARGA otra vez y su tamaño y sha256 deben coincidir
+ *      con el manifiesto del respaldo (no se confía en la bitácora de la
+ *      fase 2).
+ *   2. La columna dueña apunta exactamente a la copia (relectura fresca).
+ *   3. Ninguna ruta_* de NINGÚN registro apunta al original (relectura
+ *      fresca de todos los registros, rutas relativas y URLs).
+ * Las comprobaciones 2 y 3 se hacen después de la descarga, inmediatamente
+ * antes del borrado. Después de borrar se confirma que el original ya no
+ * existe.
+ */
+async function limpiar(): Promise<number> {
+  const seco = process.argv.includes('--seco');
+  const confirmo = process.argv.includes('--confirmo');
+  if (seco === confirmo) throw new Error('Indica exactamente uno: --seco (no borra) o --confirmo --revisado <bitácora de la pasada en seco>.');
+  const rutaPlan = opcion('--plan');
+  const rutaBitacora = opcion('--bitacora');
+
+  console.log(`Proyecto Supabase: ${supabaseUrl() || '(sin NEXT_PUBLIC_SUPABASE_URL)'}`);
+  const commit = commitDelCodigo();
+  const { p, shaPlan } = leerPlanValidado(rutaPlan);
+  const total = p.registros.reduce((s, r) => s + r.items.length, 0);
+
+  // En el borrado real, solo lo que la pasada en seco revisada aprobó.
+  let aprobados: Set<string> | null = null;
+  let rutaRevisado = '';
+  let shaRevisado = '';
+  if (confirmo) {
+    rutaRevisado = opcion('--revisado');
+    if (!existsSync(rutaRevisado)) throw new Error(`No existe la bitácora de la pasada en seco: ${rutaRevisado}`);
+    const lineas = readFileSync(rutaRevisado, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as LineaBitacora);
+    if (lineas[0]?.tipo !== 'inicio' || lineas[0].fase !== 'limpiar-seco') throw new Error('--revisado no es la bitácora de una pasada en seco de la fase 4.');
+    if (lineas[0].shaPlan !== shaPlan) throw new Error('La pasada en seco es de otro plan.');
+    if (lineas.at(-1)?.tipo !== 'fin') throw new Error('La pasada en seco no terminó (sin línea de cierre).');
+    aprobados = new Set(lineas.filter((l) => l.tipo === 'item' && l.estado === 'apto').map((l) => `${l.registroId}|${l.columna}`));
+    shaRevisado = sha256Archivo(rutaRevisado);
+  }
+
+  const anotar = abrirBitacora(rutaBitacora, {
+    fase: seco ? 'limpiar-seco' : 'limpiar',
+    commit,
+    proyecto: p.supabaseUrl,
+    plan: rutaPlan,
+    shaPlan,
+    shaManifiesto: p.manifiesto.sha256,
+    ...(confirmo ? { revisado: rutaRevisado, shaRevisado, aprobados: aprobados?.size } : {}),
+    total,
+  });
+  console.log(`Commit: ${commit}`);
+  console.log(`Modo: ${seco ? 'PASADA EN SECO (no borra nada)' : `BORRADO REAL (solo los ${aprobados?.size} aptos de la pasada en seco)`}`);
+  console.log(`Bitácora: ${rutaBitacora}\n`);
+
+  const sb = cliente();
+  const bucket = sb.storage.from(BUCKET);
+  const resultados: ResultadoLimpieza[] = [];
+  let hechos = 0;
+
+  async function procesarRegistro(r: RegistroPlan): Promise<void> {
+    const res = new Map<Columna, ResultadoLimpieza>();
+    const shaCopia = new Map<Columna, string>();
+    const marcar = (c: Columna, estado: EstadoLimpieza, motivo = '') =>
+      res.set(c, { registroId: r.registroId, columna: c, estado, motivo });
+
+    // a) Por objeto: ¿estaba aprobado?, ¿existe el original?, y la copia
+    //    descargada AHORA contra el respaldo.
+    const candidatos: ItemPlan[] = [];
+    for (const item of r.items) {
+      try {
+        if (aprobados && !aprobados.has(`${r.registroId}|${item.columna}`)) {
+          marcar(item.columna, 'no apto', 'no estaba apto en la pasada en seco revisada');
+          continue;
+        }
+        if (!(await existe(sb, item.origen))) {
+          marcar(item.columna, 'sin original', 'el original ya no existe');
+          continue;
+        }
+        const blob = await descargar(sb, item.destino);
+        const bytes = Buffer.from(await blob.arrayBuffer());
+        const sha = createHash('sha256').update(bytes).digest('hex');
+        shaCopia.set(item.columna, sha);
+        if (bytes.length !== item.tamano) {
+          marcar(item.columna, 'no apto', `copia de ${bytes.length} bytes, esperado ${item.tamano}`);
+          continue;
+        }
+        if (sha !== item.sha256) {
+          marcar(item.columna, 'no apto', 'sha256 de la copia distinto del respaldo');
+          continue;
+        }
+        candidatos.push(item);
+      } catch (e) {
+        marcar(item.columna, 'no apto', `no se pudo comprobar: ${mensaje(e)}`);
+      }
+    }
+
+    // b) Relectura fresca de TODOS los registros, inmediatamente antes de
+    //    borrar: la columna dueña apunta a la copia y nadie apunta al original.
+    let aptos: ItemPlan[] = [];
+    if (candidatos.length > 0) {
+      try {
+        const todos = await leerRegistros<Registro>(sb, ['id', 'upload_session_id', ...COLUMNAS]);
+        const referenciadas = new Map<string, string[]>();
+        for (const x of todos) {
+          for (const c of COLUMNAS) {
+            const v = x[c];
+            if (!v || !v.trim()) continue;
+            const n = aRuta(v);
+            if ('fuera' in n) continue;
+            referenciadas.set(n.ruta, [...(referenciadas.get(n.ruta) ?? []), `registro ${x.id}.${c}`]);
+          }
+        }
+        const fila = todos.find((x) => x.id === r.registroId);
+        for (const item of candidatos) {
+          if (!fila) marcar(item.columna, 'no apto', 'el registro ya no existe');
+          else if (fila[item.columna] !== item.valorNuevo) marcar(item.columna, 'no apto', 'la columna no apunta a la copia');
+          else if (referenciadas.has(item.origen)) marcar(item.columna, 'no apto', `el original sigue referenciado por ${referenciadas.get(item.origen)!.join(', ')}`);
+          else aptos.push(item);
+        }
+      } catch (e) {
+        for (const item of candidatos) marcar(item.columna, 'no apto', `no se pudo releer registros: ${mensaje(e)}`);
+        aptos = [];
+      }
+    }
+
+    // c) Seco: solo se informa. Real: se borra y se confirma que ya no existe.
+    for (const item of aptos) {
+      if (seco) {
+        marcar(item.columna, 'apto');
+        continue;
+      }
+      try {
+        const { error } = await bucket.remove([item.origen]);
+        if (error) throw error;
+        if (await existe(sb, item.origen)) throw new Error('el original sigue existiendo después de borrarlo');
+        marcar(item.columna, 'borrado');
+      } catch (e) {
+        marcar(item.columna, 'fallo al borrar', mensaje(e));
+      }
+    }
+
+    for (const item of r.items) {
+      const x = res.get(item.columna) ?? { registroId: r.registroId, columna: item.columna, estado: 'no apto' as EstadoLimpieza, motivo: 'sin resultado' };
+      resultados.push(x);
+      anotar({
+        tipo: 'item',
+        registroId: r.registroId,
+        columna: item.columna,
+        origen: item.origen,
+        destino: item.destino,
+        estado: x.estado,
+        motivo: x.motivo,
+        sha256Copia: shaCopia.get(item.columna) ?? '',
+        sha256Respaldo: item.sha256,
+      });
+      hechos++;
+      if (hechos % 10 === 0 || hechos === total) console.log(`  procesados ${hechos}/${total}`);
+    }
+  }
+
+  let siguiente = 0;
+  const trabajador = async () => {
+    while (siguiente < p.registros.length) await procesarRegistro(p.registros[siguiente++]);
+  };
+  console.log(seco ? 'Comprobando (sin borrar)...' : 'Comprobando y borrando...');
+  await Promise.all(Array.from({ length: Math.min(REGISTROS_SIMULTANEOS, p.registros.length) }, trabajador));
+
+  const cuenta = (e: EstadoLimpieza) => resultados.filter((x) => x.estado === e);
+  const orden = (a: ResultadoLimpieza, b: ResultadoLimpieza) => a.registroId - b.registroId || a.columna.localeCompare(b.columna);
+  const listar = (xs: ResultadoLimpieza[]) => {
+    for (const x of xs.sort(orden)) console.log(`  registro ${x.registroId} · ${x.columna}${x.motivo ? ` — ${x.motivo}` : ''}`);
+  };
+  const noAptos = cuenta('no apto');
+  const sinOriginal = cuenta('sin original');
+  anotar({
+    tipo: 'fin',
+    ...Object.fromEntries((['apto', 'no apto', 'sin original', 'borrado', 'fallo al borrar'] as const).map((e) => [e, cuenta(e).length])),
+    total,
+  });
+
+  if (seco) {
+    const aptos = cuenta('apto');
+    console.log('\n================ FASE 4, PASADA EN SECO (no se borró nada) ================');
+    console.log(`Aptos para borrar (pasan las tres comprobaciones): ${aptos.length} de ${total}`);
+    listar(aptos);
+    console.log(`No aptos: ${noAptos.length}`);
+    listar(noAptos);
+    console.log(`Sin original (ya no existía): ${sinOriginal.length}`);
+    listar(sinOriginal);
+    console.log(`\nBitácora de la pasada en seco: ${rutaBitacora}`);
+    console.log('Para borrar, pásala con --revisado en una corrida con --confirmo.');
+    return aptos.length === total ? 0 : 1;
+  }
+
+  const borrados = cuenta('borrado');
+  const fallos = cuenta('fallo al borrar');
+  console.log('\n================ FASE 4, BORRADO REAL ================');
+  console.log(`Originales borrados: ${borrados.length} de ${total}`);
+  console.log(`No borrados (no aptos ahora o en la pasada en seco): ${noAptos.length}`);
+  listar(noAptos);
+  console.log(`Sin original (ya no existía): ${sinOriginal.length}`);
+  listar(sinOriginal);
+  console.log(`Fallos al borrar: ${fallos.length}`);
+  listar(fallos);
+  console.log(`\nBitácora: ${rutaBitacora}`);
+  return borrados.length === total ? 0 : 1;
+}
+
 // ------------------------------------------------------------------ main
 
 async function main(): Promise<number> {
@@ -749,11 +988,11 @@ async function main(): Promise<number> {
   if (modo === 'plan') return plan();
   if (modo === 'copiar') return copiar();
   if (modo === 'sql') return generarSql();
-  if (modo === 'limpiar') {
-    throw new Error(`La fase "${modo}" todavía no está implementada.`);
-  }
+  if (modo === 'limpiar') return limpiar();
   throw new Error(
-    'Uso: plan --manifiesto <csv> --plan <json> | copiar --plan <json> --bitacora <jsonl> | sql --plan <json> --bitacora <jsonl> --sql <archivo.sql>',
+    'Uso: plan --manifiesto <csv> --plan <json> | copiar --plan <json> --bitacora <jsonl> | ' +
+      'sql --plan <json> --bitacora <jsonl> --sql <archivo.sql> | ' +
+      'limpiar --plan <json> --bitacora <jsonl> (--seco | --confirmo --revisado <jsonl de la pasada en seco>)',
   );
 }
 
