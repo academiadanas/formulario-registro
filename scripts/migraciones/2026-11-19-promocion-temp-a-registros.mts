@@ -14,9 +14,14 @@
  * Fases (cada una es una invocación aparte):
  *   1. plan      En seco. Lee registros y el bucket, cruza cada objeto con el
  *                manifiesto del respaldo y escribe el plan. No toca nada.
- *   2. copiar    (pendiente) Copia a registros/{uuid}/ y verifica cada copia
- *                contra el sha256 del manifiesto. No borra.
- *   3. sql       (pendiente) Genera el .sql con los UPDATE. No lo ejecuta.
+ *   2. copiar    Copia a registros/{uuid}/ y verifica cada copia (tamaño y
+ *                sha256) contra el manifiesto del respaldo. No borra
+ *                originales ni toca la base. Si un objeto falla, sigue con
+ *                los demás y sale con 1. Solo corre con el código
+ *                commiteado; la bitácora registra el commit.
+ *   3. sql       (pendiente) Genera el .sql con los UPDATE, SOLO para los
+ *                objetos que la fase 2 verificó; avisa fuerte si son menos
+ *                que los del plan. No lo ejecuta.
  *   4. limpiar   (pendiente) Tras el SQL: verifica y borra los originales.
  *
  * El plan contiene las rutas nuevas (lo único que protege los archivos
@@ -27,19 +32,26 @@
  *   node --env-file=.env.local scripts/migraciones/2026-11-19-promocion-temp-a-registros.mts plan \
  *     --manifiesto "D:\respaldos-academia\documentos-AAAA-MM-DD\manifiesto.csv" \
  *     --plan "D:\respaldos-academia\promocion-AAAA-MM-DD\plan.json"
+ *   node --env-file=.env.local scripts/migraciones/2026-11-19-promocion-temp-a-registros.mts copiar \
+ *     --plan "D:\respaldos-academia\promocion-AAAA-MM-DD\plan.json" \
+ *     --bitacora "D:\respaldos-academia\promocion-AAAA-MM-DD\copia-1.jsonl"
  *
  * Códigos de salida: 0 plan sin bloqueos · 1 plan con bloqueos (se guarda,
  * pero las fases siguientes se negarán a usarlo) · 2 error.
  */
 
-import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { createHash, randomUUID } from 'node:crypto';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   aRuta,
   BUCKET,
   cliente,
   COLUMNAS,
+  conReintentos,
   HOSTS_ANTERIORES,
   leerManifiesto,
   leerRegistros,
@@ -53,6 +65,12 @@ import {
 } from '../lib/documentos.mts';
 
 const NOMBRE_SCRIPT = '2026-11-19-promocion-temp-a-registros';
+const RAIZ_REPO = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const ARCHIVOS_DEL_CODIGO = [
+  'scripts/migraciones/2026-11-19-promocion-temp-a-registros.mts',
+  'scripts/lib/documentos.mts',
+];
+const REGISTROS_SIMULTANEOS = 3;
 
 type Forma = 'relativa' | 'url';
 
@@ -270,15 +288,234 @@ async function plan(): Promise<number> {
   return 0;
 }
 
+// ------------------------------------------- utilidades de fases 2 a 4
+
+/**
+ * Las fases que tocan documentos solo corren con el código commiteado: la
+ * bitácora registra el commit, y así se sabe exactamente qué código corrió.
+ */
+function commitDelCodigo(): string {
+  let estado: string;
+  let commit: string;
+  try {
+    estado = execFileSync('git', ['-C', RAIZ_REPO, 'status', '--porcelain', '--', ...ARCHIVOS_DEL_CODIGO], { encoding: 'utf8' });
+    commit = execFileSync('git', ['-C', RAIZ_REPO, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  } catch (e) {
+    throw new Error(`No se pudo consultar git: ${mensaje(e)}`);
+  }
+  if (estado.trim()) {
+    throw new Error(
+      `El código de la migración tiene cambios sin commitear:\n${estado}` +
+        'Commitéalo antes de tocar documentos: la bitácora registra el commit que corrió.',
+    );
+  }
+  return commit;
+}
+
+/** Lee el plan y comprueba que se puede usar: sin bloqueos, mismo proyecto, mismo manifiesto. */
+function leerPlanValidado(rutaPlan: string): { p: Plan; shaPlan: string } {
+  if (!existsSync(rutaPlan)) throw new Error(`No existe el plan: ${rutaPlan}`);
+  const p = JSON.parse(readFileSync(rutaPlan, 'utf8')) as Plan;
+  if (p.version !== 1 || p.script !== NOMBRE_SCRIPT) throw new Error('El plan no es de esta migración o de esta versión.');
+  if (p.bloqueos.length > 0) throw new Error(`El plan tiene ${p.bloqueos.length} bloqueo(s); genera uno nuevo sin bloqueos.`);
+  if (p.supabaseUrl !== supabaseUrl()) throw new Error(`El plan es de ${p.supabaseUrl} y el entorno apunta a ${supabaseUrl()}.`);
+  if (!existsSync(p.manifiesto.ruta)) throw new Error(`No existe el manifiesto del plan: ${p.manifiesto.ruta}`);
+  if (sha256Archivo(p.manifiesto.ruta) !== p.manifiesto.sha256) {
+    throw new Error('El manifiesto del respaldo cambió desde que se generó el plan; no se puede usar como referencia.');
+  }
+  return { p, shaPlan: sha256Archivo(rutaPlan) };
+}
+
+function abrirBitacora(ruta: string, inicio: Record<string, unknown>): (linea: Record<string, unknown>) => void {
+  verificarUbicacionSegura(ruta);
+  if (existsSync(ruta)) throw new Error(`La bitácora ya existe, no se sobrescribe: ${ruta}`);
+  mkdirSync(dirname(ruta), { recursive: true });
+  writeFileSync(ruta, JSON.stringify({ t: new Date().toISOString(), tipo: 'inicio', ...inicio }) + '\n', { encoding: 'utf8', flag: 'wx' });
+  return (linea) => appendFileSync(ruta, JSON.stringify({ t: new Date().toISOString(), ...linea }) + '\n', 'utf8');
+}
+
+async function existe(sb: SupabaseClient, ruta: string): Promise<boolean> {
+  const { data } = await sb.storage.from(BUCKET).exists(ruta);
+  return data === true;
+}
+
+async function descargar(sb: SupabaseClient, ruta: string): Promise<Blob> {
+  return conReintentos('Descargar', async () => {
+    const { data, error } = await sb.storage.from(BUCKET).download(ruta);
+    if (error) throw error;
+    if (!data) throw new Error('respuesta sin contenido');
+    return data;
+  });
+}
+
+// ---------------------------------------------------------------- fase 2
+
+type EstadoItem = 'verificado' | 'fallo' | 'omitido';
+
+interface ResultadoItem {
+  registroId: number;
+  columna: Columna;
+  estado: EstadoItem;
+  motivo: string;
+  yaExistia: boolean;
+}
+
+/**
+ * Copia cada objeto del plan a su destino y verifica la copia descargándola
+ * y comparando tamaño y sha256 contra el MANIFIESTO DEL RESPALDO (fuente
+ * independiente del original) y el tipo contra el del plan. No borra
+ * originales ni toca la base.
+ *
+ * Ante una falla sigue con los demás; al final reporta cada falla con su
+ * registro y columna y sale con 1. Se puede volver a correr con una
+ * bitácora nueva: las copias que ya existan se vuelven a verificar en vez
+ * de copiarse.
+ */
+async function copiar(): Promise<number> {
+  const rutaPlan = opcion('--plan');
+  const rutaBitacora = opcion('--bitacora');
+
+  console.log(`Proyecto Supabase: ${supabaseUrl() || '(sin NEXT_PUBLIC_SUPABASE_URL)'}`);
+  const commit = commitDelCodigo();
+  const { p, shaPlan } = leerPlanValidado(rutaPlan);
+  const total = p.registros.reduce((s, r) => s + r.items.length, 0);
+  const anotar = abrirBitacora(rutaBitacora, {
+    fase: 'copiar',
+    commit,
+    proyecto: p.supabaseUrl,
+    plan: rutaPlan,
+    shaPlan,
+    shaManifiesto: p.manifiesto.sha256,
+    total,
+  });
+  console.log(`Commit: ${commit}`);
+  console.log(`Plan: ${rutaPlan} (${p.registros.length} registros, ${total} objetos)`);
+  console.log(`Bitácora: ${rutaBitacora}\n`);
+
+  const sb = cliente();
+  const bucket = sb.storage.from(BUCKET);
+  const resultados: ResultadoItem[] = [];
+  let hechos = 0;
+
+  async function procesarRegistro(r: RegistroPlan): Promise<void> {
+    // La columna debe seguir apuntando al original del plan; si alguien la
+    // cambió (p. ej. desde Control Escolar), ese objeto no se toca.
+    let fila: Record<string, string | null> | null = null;
+    let errorFila = '';
+    try {
+      fila = await conReintentos(`Leer registro ${r.registroId}`, async () => {
+        const { data, error } = await sb
+          .from('registros')
+          .select(r.items.map((i) => i.columna).join(','))
+          .eq('id', r.registroId)
+          .maybeSingle();
+        if (error) throw error;
+        return data as unknown as Record<string, string | null> | null;
+      });
+    } catch (e) {
+      errorFila = mensaje(e);
+    }
+
+    for (const item of r.items) {
+      const res: ResultadoItem = { registroId: r.registroId, columna: item.columna, estado: 'fallo', motivo: '', yaExistia: false };
+      let shaCopia = '';
+      try {
+        if (errorFila) throw new Error(`no se pudo leer el registro: ${errorFila}`);
+        if (!fila) {
+          res.estado = 'omitido';
+          res.motivo = 'el registro ya no existe';
+        } else if (fila[item.columna] !== item.valorActual) {
+          res.estado = 'omitido';
+          res.motivo = 'la columna cambió desde el plan';
+        } else {
+          // 1. Copiar (o reutilizar la copia de una corrida anterior).
+          res.yaExistia = await existe(sb, item.destino);
+          if (!res.yaExistia) {
+            const { error } = await bucket.copy(item.origen, item.destino);
+            // Si la copia respondió error pero sí se completó, se verifica igual.
+            if (error && !(await existe(sb, item.destino))) throw new Error(`copia: ${mensaje(error)}`);
+          }
+
+          // 2. Verificar contra el respaldo.
+          const blob = await descargar(sb, item.destino);
+          const bytes = Buffer.from(await blob.arrayBuffer());
+          shaCopia = createHash('sha256').update(bytes).digest('hex');
+          let problema = '';
+          if (bytes.length !== item.tamano) problema = `tamaño ${bytes.length}, esperado ${item.tamano}`;
+          else if (shaCopia !== item.sha256) problema = 'sha256 distinto del respaldo';
+          else if (item.mimetype && blob.type && blob.type !== item.mimetype) problema = `tipo ${blob.type}, esperado ${item.mimetype}`;
+
+          if (problema) {
+            // La copia mala no la referencia nadie (la columna sigue en el
+            // original, comprobado arriba): se borra para que una nueva
+            // corrida la vuelva a copiar.
+            const { error: errBorrar } = await bucket.remove([item.destino]);
+            res.motivo = `${problema}; ${errBorrar ? 'la copia mala NO se pudo borrar' : 'copia mala borrada'}`;
+          } else {
+            res.estado = 'verificado';
+          }
+        }
+      } catch (e) {
+        res.estado = 'fallo';
+        res.motivo = mensaje(e);
+      }
+      resultados.push(res);
+      anotar({
+        tipo: 'item',
+        registroId: r.registroId,
+        columna: item.columna,
+        origen: item.origen,
+        destino: item.destino,
+        estado: res.estado,
+        motivo: res.motivo,
+        yaExistia: res.yaExistia,
+        sha256Copia: shaCopia,
+        sha256Respaldo: item.sha256,
+      });
+      hechos++;
+      if (hechos % 10 === 0 || hechos === total) console.log(`  procesados ${hechos}/${total}`);
+    }
+  }
+
+  let siguiente = 0;
+  const trabajador = async () => {
+    while (siguiente < p.registros.length) await procesarRegistro(p.registros[siguiente++]);
+  };
+  console.log('Copiando y verificando...');
+  await Promise.all(Array.from({ length: Math.min(REGISTROS_SIMULTANEOS, p.registros.length) }, trabajador));
+
+  const verificados = resultados.filter((x) => x.estado === 'verificado');
+  const fallos = resultados.filter((x) => x.estado === 'fallo');
+  const omitidos = resultados.filter((x) => x.estado === 'omitido');
+  anotar({ tipo: 'fin', verificados: verificados.length, fallos: fallos.length, omitidos: omitidos.length, total });
+
+  const orden = (a: ResultadoItem, b: ResultadoItem) => a.registroId - b.registroId || a.columna.localeCompare(b.columna);
+  console.log('\n================ FASE 2: COPIA Y VERIFICACIÓN (no se borró ningún original ni se tocó la base) ================');
+  console.log(`Verificados contra el respaldo: ${verificados.length} de ${total}` +
+    (verificados.some((x) => x.yaExistia) ? `  (${verificados.filter((x) => x.yaExistia).length} ya existían de una corrida anterior)` : ''));
+  console.log(`Fallos:   ${fallos.length}`);
+  for (const x of fallos.sort(orden)) console.log(`  registro ${x.registroId} · ${x.columna} — ${x.motivo}`);
+  console.log(`Omitidos: ${omitidos.length}`);
+  for (const x of omitidos.sort(orden)) console.log(`  registro ${x.registroId} · ${x.columna} — ${x.motivo}`);
+  console.log(`\nBitácora: ${rutaBitacora}`);
+  if (verificados.length === total) {
+    console.log('\nRESULTADO: los objetos del plan quedaron copiados y verificados.');
+    return 0;
+  }
+  console.log(`\nRESULTADO: COPIA PARCIAL — ${total - verificados.length} objeto(s) sin verificar. La fase 3 solo generará UPDATE para los ${verificados.length} verificados.`);
+  return 1;
+}
+
 // ------------------------------------------------------------------ main
 
 async function main(): Promise<number> {
   const modo = process.argv[2];
   if (modo === 'plan') return plan();
-  if (modo === 'copiar' || modo === 'sql' || modo === 'limpiar') {
+  if (modo === 'copiar') return copiar();
+  if (modo === 'sql' || modo === 'limpiar') {
     throw new Error(`La fase "${modo}" todavía no está implementada.`);
   }
-  throw new Error('Uso: plan --manifiesto <csv> --plan <json>');
+  throw new Error('Uso: plan --manifiesto <csv> --plan <json> | copiar --plan <json> --bitacora <jsonl>');
 }
 
 main().then(
