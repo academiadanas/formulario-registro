@@ -851,6 +851,10 @@ async function limpiar(): Promise<number> {
           marcar(item.columna, 'sin original', 'el original ya no existe');
           continue;
         }
+        if (!(await existe(sb, item.destino))) {
+          marcar(item.columna, 'no apto', 'la copia no existe');
+          continue;
+        }
         const blob = await descargar(sb, item.destino);
         const bytes = Buffer.from(await blob.arrayBuffer());
         const sha = createHash('sha256').update(bytes).digest('hex');
