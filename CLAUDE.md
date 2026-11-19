@@ -142,6 +142,10 @@ Los archivos huérfanos (carpetas `temp/{uuid}/` sin registro asociado en `regis
 
 Considerar restringir la SELECT policy del bucket `documentos` para que clientes anónimos no puedan listar archivos del bucket. No es bloqueante porque las URLs no son adivinables, pero es buena higiene.
 
+### Registros duplicados por reintento del envío (Noviembre 2026)
+
+`/api/registro` no rechaza un `upload_session_id` que ya tiene registro. Si el INSERT se hizo pero la respuesta no llegó a la alumna y ella vuelve a pulsar "Enviar Registro", el formulario re-sube los archivos a la misma `temp/{uploadId}/` (`upload-file.ts` usa `upsert: true`) y se crea un segundo registro de la misma alumna. La comprobación de existencia de archivos antes del INSERT evita que un registro nazca apuntando a archivos borrados, pero no evita el duplicado. Arreglo pendiente: rechazar (o resolver de forma idempotente devolviendo el folio existente) un `upload_session_id` que ya tenga registro. Ese mismo arreglo cierra que un cliente que conozca el `upload_session_id` de otra alumna lo use como propio para ligar sus archivos a un registro nuevo.
+
 ---
 
 ## Reglas para Claude Code en este proyecto
