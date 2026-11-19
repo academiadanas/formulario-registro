@@ -63,7 +63,7 @@ Invariante: **ninguna columna `ruta_*` apunta bajo `temp/`**. `temp/` es solo pa
 - **Nunca lanza ni afecta la respuesta**: la alumna recibe lo mismo pase lo que pase. Cada llamada a Storage tiene 5 s de límite y la promoción un tope total de 20 s; la ruta exporta `maxDuration = 60` para que Vercel no corte entre el INSERT y la respuesta.
 - **Reglas de borrado:** un original se borra solo si el UPDATE confirmó que la fila apunta a la copia; una copia, solo si se sabe que la fila no la usa. Si el UPDATE queda incierto (corte por tiempo), se relee la fila; si tampoco se puede, no se borra nada.
 - **Una línea de log por promoción**, con `registroId` y `uploadSessionId`, nunca con la ruta nueva: `[promocion] registro N …` (éxito) o `[promocion] FALLA registro N … Estado: …`.
-- **Si falla,** el registro queda con alguna `ruta_*` en `temp/` (el original sigue ahí) o con sobrantes; el script de invariante lo reporta y la migración de promoción (Pieza B, `scripts/migraciones/`) lo repara.
+- **Si falla,** el registro queda con alguna `ruta_*` en `temp/` (el original sigue ahí) o con un sobrante en `temp/` (la ruta ya apunta a la copia, pero el original no se borró). El script de invariante reporta los dos. La migración de promoción (`scripts/migraciones/`) repara el primero; el sobrante hoy se limpia a mano, verificando antes que nadie lo referencia.
 - **Registros anteriores a este cambio** siguen en `temp/` hasta que corra esa migración.
 
 ### Validaciones server-side críticas en `/api/registro`
